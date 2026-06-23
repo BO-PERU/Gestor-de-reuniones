@@ -49,6 +49,13 @@ const endMeetingBtn = document.getElementById('end-meeting-btn');
 const summaryListDOM = document.getElementById('summary-list');
 const newMeetingBtn = document.getElementById('new-meeting-btn'); // Volver al listado
 
+// Elementos - Sincronización
+const syncModalBtn = document.getElementById('sync-modal-btn');
+const syncModal = document.getElementById('sync-modal');
+const exportDataBtn = document.getElementById('export-data-btn');
+const importDataBtn = document.getElementById('import-data-btn');
+const closeSyncBtn = document.getElementById('close-sync-btn');
+
 // Motor de audio diferido
 let audioCtx = null;
 function playBeep() {
@@ -144,6 +151,44 @@ function setupEventListeners() {
         renderAgendasList();
     });
     
+    // Sync Manual
+    syncModalBtn.addEventListener('click', () => syncModal.classList.add('active'));
+    closeSyncBtn.addEventListener('click', () => syncModal.classList.remove('active'));
+    
+    exportDataBtn.addEventListener('click', async () => {
+        try {
+            const dataStr = JSON.stringify(appState.agendas);
+            const encoded = btoa(encodeURIComponent(dataStr));
+            await navigator.clipboard.writeText(`REUNIONES_SYNC:${encoded}`);
+            alert('¡Agendas copiadas al portapapeles! Ahora pégalas en tu otro dispositivo.');
+        } catch (e) {
+            alert('Error al copiar. Asegúrate de dar permisos al portapapeles.');
+        }
+    });
+    
+    importDataBtn.addEventListener('click', async () => {
+        try {
+            const text = await navigator.clipboard.readText();
+            if (!text.startsWith('REUNIONES_SYNC:')) {
+                alert('El texto en el portapapeles no es válido para sincronizar.');
+                return;
+            }
+            const encoded = text.replace('REUNIONES_SYNC:', '');
+            const decoded = decodeURIComponent(atob(encoded));
+            const parsed = JSON.parse(decoded);
+            
+            if (Array.isArray(parsed)) {
+                appState.agendas = parsed;
+                saveState();
+                renderAgendasList();
+                syncModal.classList.remove('active');
+                alert('¡Agendas sincronizadas con éxito!');
+            }
+        } catch (e) {
+            alert('Error al pegar. Intenta copiar de nuevo desde el otro dispositivo o revisa los permisos.');
+        }
+    });
+
     window.addEventListener('beforeunload', (e) => {
         if (appState.isTimerRunning) {
             e.preventDefault();

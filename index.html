@@ -16,7 +16,10 @@
         <!-- Pantalla de Listado de Agendas -->
         <section id="agendas-list-screen" class="screen active">
             <header>
-                <h1>Mis Agendas</h1>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h1 style="margin: 0;">Mis Agendas</h1>
+                    <button id="sync-modal-btn" class="btn text-btn" style="padding: 0.5rem;" title="Sincronización Manual">🔄 Sync</button>
+                </div>
                 <p>Selecciona una reunión o crea una nueva.</p>
             </header>
             
@@ -146,6 +149,17 @@
             </div>
             <button id="new-meeting-btn" class="btn primary full-width" style="margin-top: 1rem;">Volver al Listado</button>
         </section>
+        
+        <!-- Modal de Sincronización -->
+        <div id="sync-modal" class="modal">
+            <div class="glass-card modal-content">
+                <h3>Sincronización Manual</h3>
+                <p style="margin-bottom: 1rem; font-size: 0.9rem; color: var(--text-secondary);">Copia los datos aquí y pégalos en tu otro dispositivo (aprovecha el Portapapeles Universal de Apple).</p>
+                <button id="export-data-btn" class="btn primary full-width">📤 Copiar mis agendas</button>
+                <button id="import-data-btn" class="btn secondary full-width" style="margin-top: 1rem;">📥 Pegar agendas (Sobrescribir)</button>
+                <button id="close-sync-btn" class="btn text-btn full-width" style="margin-top: 1rem;">Cancelar</button>
+            </div>
+        </div>
     </div>
 
     <script src="app.js?v=2"></script>
