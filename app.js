@@ -56,6 +56,18 @@ const exportDataBtn = document.getElementById('export-data-btn');
 const importDataBtn = document.getElementById('import-data-btn');
 const closeSyncBtn = document.getElementById('close-sync-btn');
 
+// Elementos - Acuerdos
+const setupAgreementsBtn = document.getElementById('setup-agreements-btn');
+const summaryAgreementsBtn = document.getElementById('summary-agreements-btn');
+const agreementsModal = document.getElementById('agreements-modal');
+const agreementTextInput = document.getElementById('agreement-text');
+const agreementRespInput = document.getElementById('agreement-responsible');
+const agreementDateInput = document.getElementById('agreement-date');
+const addAgreementBtn = document.getElementById('add-agreement-btn');
+const agreementsList = document.getElementById('agreements-list');
+const copyAgreementsBtn = document.getElementById('copy-agreements-btn');
+const closeAgreementsBtn = document.getElementById('close-agreements-btn');
+
 // Motor de audio diferido
 let audioCtx = null;
 function playBeep() {
@@ -189,6 +201,20 @@ function setupEventListeners() {
         }
     });
 
+    // Modal de Acuerdos
+    const openAgreementsModal = () => {
+        const agenda = getCurrentAgenda();
+        if (agenda) {
+            renderAgreementsList();
+            agreementsModal.classList.add('active');
+        }
+    };
+    setupAgreementsBtn.addEventListener('click', openAgreementsModal);
+    summaryAgreementsBtn.addEventListener('click', openAgreementsModal);
+    closeAgreementsBtn.addEventListener('click', () => agreementsModal.classList.remove('active'));
+    addAgreementBtn.addEventListener('click', addAgreement);
+    copyAgreementsBtn.addEventListener('click', copyAgreements);
+
     window.addEventListener('beforeunload', (e) => {
         if (appState.isTimerRunning) {
             e.preventDefault();
@@ -265,6 +291,7 @@ function createNewAgenda() {
         date: '',
         totalTimeMinutes: 0,
         topics: [],
+        agreements: [],
         currentTopicIndex: 0
     };
     appState.agendas.push(newAgenda);
@@ -420,6 +447,105 @@ function deleteTopic(id) {
     updateSummary();
     renderTopicsList();
     saveState();
+}
+
+// -- LÓGICA DE ACUERDOS --
+function renderAgreementsList() {
+    const agenda = getCurrentAgenda();
+    if (!agenda) return;
+    
+    if (!agenda.agreements || agenda.agreements.length === 0) {
+        agreementsList.innerHTML = '<li class="empty-state">No hay acuerdos registrados.</li>';
+        return;
+    }
+    
+    agreementsList.innerHTML = '';
+    agenda.agreements.forEach((agr) => {
+        const li = document.createElement('li');
+        li.className = 'topic-item'; // Reusando estilo de la lista de temas
+        li.style.flexDirection = 'column';
+        li.style.alignItems = 'flex-start';
+        li.style.gap = '0.5rem';
+        
+        const dateFormatted = agr.date ? new Date(agr.date).toLocaleDateString() : 'Sin fecha';
+        
+        li.innerHTML = `
+            <div style="display: flex; justify-content: space-between; width: 100%;">
+                <strong style="font-size: 1rem; color: var(--text-primary);">&#8226; ${agr.text}</strong>
+                <button class="delete-btn" data-id="${agr.id}" style="position: static;">×</button>
+            </div>
+            <div style="font-size: 0.85rem; color: var(--text-secondary); display: flex; gap: 1rem;">
+                <span>👤 Resp: ${agr.responsible || 'N/A'}</span>
+                <span>📅 Límite: ${dateFormatted}</span>
+            </div>
+        `;
+        
+        li.querySelector('.delete-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteAgreement(agr.id);
+        });
+        
+        agreementsList.appendChild(li);
+    });
+}
+
+function addAgreement() {
+    const agenda = getCurrentAgenda();
+    if (!agenda) return;
+    if (!agenda.agreements) agenda.agreements = []; // Retrocompatibilidad
+    
+    const text = agreementTextInput.value.trim();
+    const responsible = agreementRespInput.value.trim();
+    const date = agreementDateInput.value;
+    
+    if (!text) {
+        alert("El acuerdo o tarea no puede estar vacío.");
+        return;
+    }
+    
+    agenda.agreements.push({
+        id: Date.now().toString(),
+        text,
+        responsible,
+        date
+    });
+    
+    agreementTextInput.value = '';
+    agreementRespInput.value = '';
+    agreementDateInput.value = '';
+    
+    saveState();
+    renderAgreementsList();
+}
+
+function deleteAgreement(id) {
+    const agenda = getCurrentAgenda();
+    if (!agenda) return;
+    agenda.agreements = agenda.agreements.filter(a => a.id !== id);
+    saveState();
+    renderAgreementsList();
+}
+
+async function copyAgreements() {
+    const agenda = getCurrentAgenda();
+    if (!agenda || !agenda.agreements || agenda.agreements.length === 0) {
+        alert("No hay acuerdos para copiar.");
+        return;
+    }
+    
+    let report = `📝 MINUTA DE ACUERDOS\nReunión: ${agenda.name || 'Sin nombre'}\nFecha: ${agenda.date || 'N/A'}\n\n`;
+    
+    agenda.agreements.forEach((agr, i) => {
+        const dateStr = agr.date ? new Date(agr.date).toLocaleDateString() : 'N/A';
+        report += `${i + 1}. ${agr.text}\n   - Responsable: ${agr.responsible || 'N/A'}\n   - Límite: ${dateStr}\n\n`;
+    });
+    
+    try {
+        await navigator.clipboard.writeText(report);
+        alert("¡Acuerdos copiados al portapapeles! Puedes pegarlos en WhatsApp o en un correo.");
+    } catch (e) {
+        alert("No se pudo copiar. Verifica los permisos del portapapeles.");
+    }
 }
 
 

@@ -103,7 +103,10 @@
                 </ul>
             </div>
 
-            <button id="save-agenda-btn" class="btn primary full-width">Guardar Agenda</button>
+            <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                <button id="setup-agreements-btn" class="btn secondary full-width">📝 Ver Acuerdos</button>
+                <button id="save-agenda-btn" class="btn primary full-width">Guardar Agenda</button>
+            </div>
         </section>
 
         <!-- Pantalla de Temporizador -->
@@ -147,7 +150,10 @@
                 <h3>Resumen</h3>
                 <ul id="summary-list" class="summary-list"></ul>
             </div>
-            <button id="new-meeting-btn" class="btn primary full-width" style="margin-top: 1rem;">Volver al Listado</button>
+            <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                <button id="summary-agreements-btn" class="btn primary full-width">📝 Redactar Acuerdos</button>
+                <button id="new-meeting-btn" class="btn secondary full-width">Volver al Listado</button>
+            </div>
         </section>
         
         <!-- Modal de Sincronización -->
@@ -158,6 +164,41 @@
                 <button id="export-data-btn" class="btn primary full-width">📤 Copiar mis agendas</button>
                 <button id="import-data-btn" class="btn secondary full-width" style="margin-top: 1rem;">📥 Pegar agendas (Sobrescribir)</button>
                 <button id="close-sync-btn" class="btn text-btn full-width" style="margin-top: 1rem;">Cancelar</button>
+            </div>
+        </div>
+
+        <!-- Modal de Acuerdos -->
+        <div id="agreements-modal" class="modal">
+            <div class="glass-card modal-content" style="max-width: 500px; max-height: 90vh; overflow-y: auto;">
+                <h3 style="margin-top: 0;">Acuerdos de la Reunión</h3>
+                <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1rem;">Registra los puntos importantes que deben quedar grabados.</p>
+                
+                <div class="input-group" style="text-align: left;">
+                    <label for="agreement-text">Acuerdo / Tarea</label>
+                    <input type="text" id="agreement-text" placeholder="Ej. Enviar el reporte de ventas" autocomplete="off">
+                </div>
+                <div class="input-row" style="text-align: left;">
+                    <div class="input-group">
+                        <label for="agreement-responsible">Responsable</label>
+                        <input type="text" id="agreement-responsible" placeholder="Ej. María" autocomplete="off">
+                    </div>
+                    <div class="input-group">
+                        <label for="agreement-date">Fecha Límite</label>
+                        <input type="date" id="agreement-date">
+                    </div>
+                </div>
+                <button id="add-agreement-btn" class="btn primary full-width" style="margin-bottom: 1rem;">Agregar Acuerdo</button>
+
+                <div class="agreements-list-container" style="text-align: left; margin-bottom: 1rem;">
+                    <ul id="agreements-list" class="topics-list">
+                        <li class="empty-state">No hay acuerdos registrados.</li>
+                    </ul>
+                </div>
+
+                <div style="display: flex; gap: 0.5rem;">
+                    <button id="copy-agreements-btn" class="btn secondary full-width">📋 Copiar/Exportar</button>
+                    <button id="close-agreements-btn" class="btn text-btn full-width">Cerrar</button>
+                </div>
             </div>
         </div>
     </div>
