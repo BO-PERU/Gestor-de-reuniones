@@ -1,0 +1,522 @@
+// Estado Global
+let appState = {
+    agendas: [], // Array de objetos agenda
+    currentAgendaId: null,
+    isTimerRunning: false,
+    timerInterval: null
+};
+
+// Pantallas
+const agendasListScreen = document.getElementById('agendas-list-screen');
+const setupScreen = document.getElementById('setup-screen');
+const timerScreen = document.getElementById('timer-screen');
+const summaryScreen = document.getElementById('summary-screen');
+
+// Elementos - Listado
+const agendasList = document.getElementById('agendas-list');
+const createAgendaBtn = document.getElementById('create-agenda-btn');
+
+// Elementos - Setup
+const backToListBtn = document.getElementById('back-to-list-btn');
+const meetingNameInput = document.getElementById('meeting-name');
+const meetingClientInput = document.getElementById('meeting-client');
+const meetingDateInput = document.getElementById('meeting-date');
+const totalTimeInput = document.getElementById('total-time');
+
+const topicNameInput = document.getElementById('topic-name');
+const topicTimeInput = document.getElementById('topic-time');
+const addTopicBtn = document.getElementById('add-topic-btn');
+const topicsList = document.getElementById('topics-list');
+const saveAgendaBtn = document.getElementById('save-agenda-btn');
+
+const summaryTotal = document.getElementById('summary-total');
+const summaryAssigned = document.getElementById('summary-assigned');
+const summaryAvailable = document.getElementById('summary-available');
+
+// Elementos - Timer
+const activeMeetingName = document.getElementById('active-meeting-name');
+const overallProgress = document.getElementById('overall-progress');
+const currentTopicName = document.getElementById('current-topic-name');
+const mainTimer = document.getElementById('main-timer');
+const elapsedTimeEl = document.getElementById('elapsed-time');
+const topicDurationBadge = document.getElementById('topic-duration-badge');
+const pauseResumeBtn = document.getElementById('pause-resume-btn');
+const skipBtn = document.getElementById('skip-btn');
+const nextTopicName = document.getElementById('next-topic-name');
+const endMeetingBtn = document.getElementById('end-meeting-btn');
+
+// Elementos - Summary
+const summaryListDOM = document.getElementById('summary-list');
+const newMeetingBtn = document.getElementById('new-meeting-btn'); // Volver al listado
+
+// Motor de audio diferido
+let audioCtx = null;
+function playBeep() {
+    if (!audioCtx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        try {
+            audioCtx = new AudioContext();
+        } catch (e) {
+            console.warn("AudioContext bloqueado");
+            return;
+        }
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+    
+    gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.1);
+    gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.5);
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    
+    oscillator.start(audioCtx.currentTime);
+    oscillator.stop(audioCtx.currentTime + 0.5);
+}
+
+// Persistencia segura
+function saveState() {
+    try {
+        const stateToSave = { ...appState, timerInterval: null, isTimerRunning: false };
+        localStorage.setItem('meetingManager_stateV2', JSON.stringify(stateToSave));
+    } catch (e) {
+        console.warn('No se puede guardar en LocalStorage (probablemente abierto localmente)');
+    }
+}
+
+function loadState() {
+    try {
+        const saved = localStorage.getItem('meetingManager_stateV2');
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            appState = { ...appState, ...parsed };
+        }
+    } catch (e) {
+        console.warn("No se pudo cargar el LocalStorage");
+    }
+}
+
+function init() {
+    loadState();
+    setupEventListeners();
+    renderAgendasList();
+}
+
+function setupEventListeners() {
+    // Pantalla Principal
+    createAgendaBtn.addEventListener('click', createNewAgenda);
+    backToListBtn.addEventListener('click', () => {
+        saveState();
+        switchScreen(setupScreen, agendasListScreen);
+        renderAgendasList();
+    });
+
+    // Inputs de Agenda Activa
+    meetingNameInput.addEventListener('input', updateCurrentAgenda);
+    meetingClientInput.addEventListener('input', updateCurrentAgenda);
+    meetingDateInput.addEventListener('change', updateCurrentAgenda);
+    totalTimeInput.addEventListener('input', () => {
+        updateCurrentAgenda();
+        updateSummary();
+    });
+
+    addTopicBtn.addEventListener('click', addTopic);
+    saveAgendaBtn.addEventListener('click', () => {
+        saveState();
+        switchScreen(setupScreen, agendasListScreen);
+        renderAgendasList();
+    });
+    
+    // Timer
+    pauseResumeBtn.addEventListener('click', togglePause);
+    skipBtn.addEventListener('click', skipToNextTopic);
+    endMeetingBtn.addEventListener('click', finishMeeting);
+    
+    // Resumen
+    newMeetingBtn.addEventListener('click', () => {
+        switchScreen(summaryScreen, agendasListScreen);
+        renderAgendasList();
+    });
+    
+    window.addEventListener('beforeunload', (e) => {
+        if (appState.isTimerRunning) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
+}
+
+function getCurrentAgenda() {
+    return appState.agendas.find(a => a.id === appState.currentAgendaId);
+}
+
+function switchScreen(from, to) {
+    from.classList.remove('active');
+    to.classList.add('active');
+}
+
+// -- LÓGICA DE LISTADO --
+function renderAgendasList() {
+    if (appState.agendas.length === 0) {
+        agendasList.innerHTML = '<li class="empty-state">No tienes agendas guardadas.</li>';
+        return;
+    }
+    agendasList.innerHTML = '';
+    appState.agendas.forEach(agenda => {
+        const li = document.createElement('li');
+        li.className = 'agenda-card';
+        
+        const dateStr = agenda.date ? new Date(agenda.date).toLocaleDateString() : 'Sin fecha';
+        const clientStr = agenda.client || 'Sin cliente';
+        
+        li.innerHTML = `
+            <div class="title">${agenda.name || 'Reunión sin nombre'}</div>
+            <div class="details">
+                <span>📅 ${dateStr}</span>
+                <span>👤 ${clientStr}</span>
+                <span>⏱ ${agenda.totalTimeMinutes}m</span>
+            </div>
+            <div class="card-actions" style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+                <button class="btn primary small start-agenda-btn" data-id="${agenda.id}">Comenzar</button>
+                <button class="btn secondary small edit-agenda-btn" data-id="${agenda.id}">Editar</button>
+            </div>
+            <button class="delete-agenda-btn" title="Eliminar agenda">🗑</button>
+        `;
+        
+        li.querySelector('.start-agenda-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            startMeeting(agenda.id);
+        });
+        
+        li.querySelector('.edit-agenda-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            openAgenda(agenda.id);
+        });
+        
+        li.querySelector('.delete-agenda-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            if(confirm('¿Eliminar esta agenda?')) {
+                appState.agendas = appState.agendas.filter(a => a.id !== agenda.id);
+                saveState();
+                renderAgendasList();
+            }
+        });
+        
+        agendasList.appendChild(li);
+    });
+}
+
+function createNewAgenda() {
+    const newAgenda = {
+        id: Date.now().toString(),
+        name: '',
+        client: '',
+        date: '',
+        totalTimeMinutes: 0,
+        topics: [],
+        currentTopicIndex: 0
+    };
+    appState.agendas.push(newAgenda);
+    appState.currentAgendaId = newAgenda.id;
+    saveState();
+    loadAgendaIntoSetup(newAgenda);
+    switchScreen(agendasListScreen, setupScreen);
+}
+
+function openAgenda(id) {
+    appState.currentAgendaId = id;
+    const agenda = getCurrentAgenda();
+    if (agenda) {
+        loadAgendaIntoSetup(agenda);
+        switchScreen(agendasListScreen, setupScreen);
+    }
+}
+
+// -- LÓGICA DE SETUP DE AGENDA --
+function loadAgendaIntoSetup(agenda) {
+    meetingNameInput.value = agenda.name;
+    meetingClientInput.value = agenda.client;
+    meetingDateInput.value = agenda.date;
+    totalTimeInput.value = agenda.totalTimeMinutes || '';
+    
+    updateSummary();
+    renderTopicsList();
+}
+
+function updateCurrentAgenda() {
+    const agenda = getCurrentAgenda();
+    if (!agenda) return;
+    
+    agenda.name = meetingNameInput.value;
+    agenda.client = meetingClientInput.value;
+    agenda.date = meetingDateInput.value;
+    agenda.totalTimeMinutes = parseInt(totalTimeInput.value) || 0;
+    
+    saveState();
+}
+
+function updateSummary() {
+    const agenda = getCurrentAgenda();
+    if (!agenda) return;
+    
+    const assigned = agenda.topics.reduce((acc, t) => acc + t.allocatedMinutes, 0);
+    const available = Math.max(0, agenda.totalTimeMinutes - assigned);
+    
+    summaryTotal.textContent = `${agenda.totalTimeMinutes}m`;
+    summaryAssigned.textContent = `${assigned}m`;
+    summaryAvailable.textContent = `${available}m`;
+    
+    addTopicBtn.disabled = available <= 0;
+}
+
+function addTopic() {
+    const agenda = getCurrentAgenda();
+    if (!agenda) return;
+    
+    const name = topicNameInput.value.trim();
+    let time = parseInt(topicTimeInput.value);
+    
+    if (!name || isNaN(time) || time <= 0) return;
+    
+    const assigned = agenda.topics.reduce((acc, t) => acc + t.allocatedMinutes, 0);
+    const available = agenda.totalTimeMinutes - assigned;
+    
+    if (time > available) {
+        time = available;
+        topicTimeInput.value = time;
+        alert(`El tiempo máximo disponible es ${available} minutos.`);
+    }
+    
+    agenda.topics.push({
+        id: Date.now().toString(),
+        name,
+        allocatedMinutes: time,
+        allocatedSeconds: time * 60,
+        elapsedSeconds: 0,
+        completed: false
+    });
+    
+    topicNameInput.value = '';
+    topicTimeInput.value = '';
+    topicNameInput.focus();
+    
+    updateSummary();
+    renderTopicsList();
+    saveState();
+}
+
+function renderTopicsList() {
+    const agenda = getCurrentAgenda();
+    if (!agenda) return;
+    
+    if (agenda.topics.length === 0) {
+        topicsList.innerHTML = '<li class="empty-state">No hay temas agregados.</li>';
+        return;
+    }
+    
+    topicsList.innerHTML = '';
+    agenda.topics.forEach((topic, index) => {
+        const li = document.createElement('li');
+        li.className = 'topic-item';
+        li.innerHTML = `
+            <div class="info">
+                <span class="name">${index + 1}. ${topic.name}</span>
+                <span class="time">
+                    <input type="number" class="inline-time-input" value="${topic.allocatedMinutes}" min="1" data-id="${topic.id}"> min
+                </span>
+            </div>
+            <button class="delete-btn" data-id="${topic.id}">×</button>
+        `;
+        
+        li.querySelector('.delete-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteTopic(topic.id);
+        });
+        
+        const timeInput = li.querySelector('.inline-time-input');
+        timeInput.addEventListener('change', (e) => {
+            const newTime = parseInt(e.target.value);
+            if (isNaN(newTime) || newTime <= 0) {
+                e.target.value = topic.allocatedMinutes;
+                return;
+            }
+            
+            const otherTopicsTime = agenda.topics.reduce((acc, t) => t.id === topic.id ? acc : acc + t.allocatedMinutes, 0);
+            const available = agenda.totalTimeMinutes - otherTopicsTime;
+            
+            let finalTime = newTime;
+            if (newTime > available) {
+                finalTime = Math.max(1, available);
+                alert(`Se ha ajustado a ${finalTime} minutos (límite disponible).`);
+            }
+            
+            topic.allocatedMinutes = finalTime;
+            topic.allocatedSeconds = finalTime * 60;
+            
+            saveState();
+            updateSummary();
+            renderTopicsList();
+        });
+        
+        topicsList.appendChild(li);
+    });
+}
+
+function deleteTopic(id) {
+    const agenda = getCurrentAgenda();
+    if (!agenda) return;
+    agenda.topics = agenda.topics.filter(t => t.id !== id);
+    updateSummary();
+    renderTopicsList();
+    saveState();
+}
+
+
+// -- LÓGICA DEL TEMPORIZADOR --
+function startMeeting(id) {
+    appState.currentAgendaId = id;
+    const agenda = getCurrentAgenda();
+    if (!agenda || agenda.topics.length === 0) {
+        alert("La agenda no tiene temas.");
+        return;
+    }
+    
+    agenda.currentTopicIndex = 0;
+    agenda.topics.forEach(t => t.elapsedSeconds = 0); // Reset
+    
+    activeMeetingName.textContent = agenda.name || 'Reunión sin nombre';
+    
+    switchScreen(agendasListScreen, timerScreen);
+    resumeTimer();
+    updateTimerUI();
+}
+
+function updateTimerUI() {
+    const agenda = getCurrentAgenda();
+    if (!agenda) return;
+    
+    const currentTopic = agenda.topics[agenda.currentTopicIndex];
+    if (!currentTopic) return;
+    
+    currentTopicName.textContent = currentTopic.name;
+    topicDurationBadge.textContent = `${Math.round(currentTopic.allocatedSeconds / 60)}m asignados`;
+    
+    const remainingSeconds = currentTopic.allocatedSeconds - currentTopic.elapsedSeconds;
+    
+    mainTimer.textContent = formatTime(Math.max(0, remainingSeconds));
+    elapsedTimeEl.textContent = formatTime(currentTopic.elapsedSeconds);
+    
+    if (agenda.currentTopicIndex + 1 < agenda.topics.length) {
+        nextTopicName.textContent = agenda.topics[agenda.currentTopicIndex + 1].name;
+        skipBtn.textContent = "Siguiente Tema";
+    } else {
+        nextTopicName.textContent = "Último tema";
+        skipBtn.textContent = "Finalizar";
+    }
+    
+    const totalAllocated = agenda.topics.reduce((sum, t) => sum + t.allocatedSeconds, 0);
+    const totalElapsed = agenda.topics.reduce((sum, t) => sum + t.elapsedSeconds, 0);
+    const progressPercent = totalAllocated > 0 ? (totalElapsed / totalAllocated) * 100 : 0;
+    overallProgress.style.width = `${Math.min(100, progressPercent)}%`;
+    
+    mainTimer.className = 'time-huge';
+    if (remainingSeconds <= 60 && remainingSeconds > 0) {
+        mainTimer.classList.add('warning');
+    } else if (remainingSeconds <= 0) {
+        mainTimer.classList.add('danger');
+        mainTimer.textContent = "00:00";
+        if (remainingSeconds === 0) playBeep();
+    }
+}
+
+function togglePause() {
+    if (appState.isTimerRunning) {
+        pauseTimer();
+        pauseResumeBtn.textContent = 'Reanudar';
+        pauseResumeBtn.classList.remove('secondary');
+        pauseResumeBtn.classList.add('primary');
+    } else {
+        resumeTimer();
+        pauseResumeBtn.textContent = 'Pausar';
+        pauseResumeBtn.classList.remove('primary');
+        pauseResumeBtn.classList.add('secondary');
+    }
+}
+
+function pauseTimer() {
+    appState.isTimerRunning = false;
+    clearInterval(appState.timerInterval);
+}
+
+function resumeTimer() {
+    appState.isTimerRunning = true;
+    appState.timerInterval = setInterval(() => {
+        const agenda = getCurrentAgenda();
+        if (agenda && agenda.topics[agenda.currentTopicIndex]) {
+            agenda.topics[agenda.currentTopicIndex].elapsedSeconds++;
+            updateTimerUI();
+            saveState();
+        }
+    }, 1000);
+}
+
+function skipToNextTopic() {
+    const agenda = getCurrentAgenda();
+    if (!agenda) return;
+    
+    const currentTopic = agenda.topics[agenda.currentTopicIndex];
+    const remainingSeconds = currentTopic.allocatedSeconds - currentTopic.elapsedSeconds;
+    
+    if (remainingSeconds > 0 && agenda.currentTopicIndex + 1 < agenda.topics.length) {
+        agenda.topics[agenda.currentTopicIndex + 1].allocatedSeconds += remainingSeconds;
+        agenda.topics[agenda.currentTopicIndex + 1].allocatedMinutes = Math.round(agenda.topics[agenda.currentTopicIndex + 1].allocatedSeconds / 60);
+    }
+    
+    currentTopic.completed = true;
+    
+    if (agenda.currentTopicIndex + 1 < agenda.topics.length) {
+        agenda.currentTopicIndex++;
+        updateTimerUI();
+    } else {
+        finishMeeting();
+    }
+}
+
+function finishMeeting() {
+    pauseTimer();
+    renderSummary();
+    switchScreen(timerScreen, summaryScreen);
+}
+
+function renderSummary() {
+    const agenda = getCurrentAgenda();
+    if (!agenda) return;
+    
+    summaryListDOM.innerHTML = '';
+    agenda.topics.forEach((topic, index) => {
+        const plannedMin = topic.allocatedMinutes;
+        const actualMin = Math.round(topic.elapsedSeconds / 60);
+        
+        const li = document.createElement('li');
+        li.className = 'summary-item-row';
+        li.innerHTML = `
+            <span class="name">${index + 1}. ${topic.name}</span>
+            <span class="times">Planificado: ${plannedMin}m | Real: ${actualMin}m</span>
+        `;
+        summaryListDOM.appendChild(li);
+    });
+}
+
+function formatTime(totalSeconds) {
+    const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+    const s = (totalSeconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+}
+
+document.addEventListener('DOMContentLoaded', init);
