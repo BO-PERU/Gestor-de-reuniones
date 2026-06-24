@@ -51,7 +51,7 @@ const newMeetingBtn = document.getElementById('new-meeting-btn'); // Volver al l
 const syncStatus = document.getElementById('sync-status');
 
 // Cliente Supabase
-const supabaseUrl = 'https://yyqdysmfncahyumvoxnh.supabase.co';
+const supabaseUrl = 'https://yyqdysmfncahtumvoxnh.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5cWR5c21mbmNhaHR1bXZveG5oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyNTQzMzYsImV4cCI6MjA5NzgzMDMzNn0.E6ujyKDPm5uVUUE6U4A7h6k44AGsl26ljfrYBmjOWNg';
 const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
@@ -66,6 +66,11 @@ const addAgreementBtn = document.getElementById('add-agreement-btn');
 const agreementsList = document.getElementById('agreements-list');
 const copyAgreementsBtn = document.getElementById('copy-agreements-btn');
 const closeAgreementsBtn = document.getElementById('close-agreements-btn');
+
+// Elementos - Backup
+const backupDownloadBtn = document.getElementById('backup-download-btn');
+const backupUploadBtn = document.getElementById('backup-upload-btn');
+const backupFileInput = document.getElementById('backup-file-input');
 
 // Motor de audio diferido
 let audioCtx = null;
@@ -176,6 +181,47 @@ function setupEventListeners() {
         renderAgendasList();
     });
 
+    // Backup Local
+    backupDownloadBtn.addEventListener('click', () => {
+        const dataStr = JSON.stringify(appState.agendas, null, 2);
+        const blob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `backup_reuniones_${new Date().toISOString().slice(0,10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    });
+
+    backupUploadBtn.addEventListener('click', () => {
+        backupFileInput.click();
+    });
+
+    backupFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const parsed = JSON.parse(event.target.result);
+                if (Array.isArray(parsed)) {
+                    if (confirm('Esto sobrescribirá tus agendas actuales. ¿Estás seguro?')) {
+                        appState.agendas = parsed;
+                        saveState();
+                        renderAgendasList();
+                        alert('¡Backup restaurado con éxito!');
+                    }
+                } else {
+                    alert('El archivo no tiene el formato correcto.');
+                }
+            } catch(err) {
+                alert('Error al leer el archivo de backup.');
+            }
+        };
+        reader.readAsText(file);
+        e.target.value = ''; // Reset input
+    });
+
     // Modal de Acuerdos
     const openAgreementsModal = () => {
         const agenda = getCurrentAgenda();
@@ -218,7 +264,7 @@ function renderAgendasList() {
         const li = document.createElement('li');
         li.className = 'agenda-card';
         
-        const dateStr = agenda.date ? new Date(agenda.date).toLocaleDateString() : 'Sin fecha';
+        const dateStr = agenda.date ? new Date(agenda.date + 'T12:00:00').toLocaleDateString() : 'Sin fecha';
         const clientStr = agenda.client || 'Sin cliente';
         
         li.innerHTML = `
@@ -442,7 +488,7 @@ function renderAgreementsList() {
         li.style.alignItems = 'flex-start';
         li.style.gap = '0.5rem';
         
-        const dateFormatted = agr.date ? new Date(agr.date).toLocaleDateString() : 'Sin fecha';
+        const dateFormatted = agr.date ? new Date(agr.date + 'T12:00:00').toLocaleDateString() : 'Sin fecha';
         
         li.innerHTML = `
             <div style="display: flex; justify-content: space-between; width: 100%;">
@@ -511,7 +557,7 @@ async function copyAgreements() {
     let report = `📝 MINUTA DE ACUERDOS\nReunión: ${agenda.name || 'Sin nombre'}\nFecha: ${agenda.date || 'N/A'}\n\n`;
     
     agenda.agreements.forEach((agr, i) => {
-        const dateStr = agr.date ? new Date(agr.date).toLocaleDateString() : 'N/A';
+        const dateStr = agr.date ? new Date(agr.date + 'T12:00:00').toLocaleDateString() : 'N/A';
         report += `${i + 1}. ${agr.text}\n   - Responsable: ${agr.responsible || 'N/A'}\n   - Límite: ${dateStr}\n\n`;
     });
     
