@@ -51,7 +51,7 @@ const newMeetingBtn = document.getElementById('new-meeting-btn'); // Volver al l
 const syncStatus = document.getElementById('sync-status');
 
 // Cliente Supabase
-const supabaseUrl = 'https://yyqdysmfncauvmzoxnho.supabase.co';
+const supabaseUrl = 'https://yyqdysmfncahyumvoxnh.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5cWR5c21mbmNhaHR1bXZveG5oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyNTQzMzYsImV4cCI6MjA5NzgzMDMzNn0.E6ujyKDPm5uVUUE6U4A7h6k44AGsl26ljfrYBmjOWNg';
 const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
