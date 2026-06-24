@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestor de Tiempo de Reuniones</title>
-    <link rel="stylesheet" href="styles.css?v=2">
+    <link rel="stylesheet" href="styles.css?v=3">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="apple-touch-icon" href="icon.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -18,7 +18,7 @@
             <header>
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <h1 style="margin: 0;">Mis Agendas</h1>
-                    <button id="sync-modal-btn" class="btn text-btn" style="padding: 0.5rem;" title="Sincronización Manual">🔄 Sync</button>
+                    <span id="sync-status" style="font-size: 0.8rem; color: var(--text-secondary);">🟢 Sincronizado</span>
                 </div>
                 <p>Selecciona una reunión o crea una nueva.</p>
             </header>
@@ -156,16 +156,7 @@
             </div>
         </section>
         
-        <!-- Modal de Sincronización -->
-        <div id="sync-modal" class="modal">
-            <div class="glass-card modal-content">
-                <h3>Sincronización Manual</h3>
-                <p style="margin-bottom: 1rem; font-size: 0.9rem; color: var(--text-secondary);">Copia los datos aquí y pégalos en tu otro dispositivo (aprovecha el Portapapeles Universal de Apple).</p>
-                <button id="export-data-btn" class="btn primary full-width">📤 Copiar mis agendas</button>
-                <button id="import-data-btn" class="btn secondary full-width" style="margin-top: 1rem;">📥 Pegar agendas (Sobrescribir)</button>
-                <button id="close-sync-btn" class="btn text-btn full-width" style="margin-top: 1rem;">Cancelar</button>
-            </div>
-        </div>
+        <!-- El Modal de Sync Manual fue eliminado -->
 
         <!-- Modal de Acuerdos -->
         <div id="agreements-modal" class="modal">
@@ -203,6 +194,7 @@
         </div>
     </div>
 
-    <script src="app.js?v=2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="app.js?v=4"></script>
 </body>
 </html>

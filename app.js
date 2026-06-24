@@ -48,13 +48,12 @@ const endMeetingBtn = document.getElementById('end-meeting-btn');
 // Elementos - Summary
 const summaryListDOM = document.getElementById('summary-list');
 const newMeetingBtn = document.getElementById('new-meeting-btn'); // Volver al listado
+const syncStatus = document.getElementById('sync-status');
 
-// Elementos - Sincronización
-const syncModalBtn = document.getElementById('sync-modal-btn');
-const syncModal = document.getElementById('sync-modal');
-const exportDataBtn = document.getElementById('export-data-btn');
-const importDataBtn = document.getElementById('import-data-btn');
-const closeSyncBtn = document.getElementById('close-sync-btn');
+// Cliente Supabase
+const supabaseUrl = 'https://yyqdysmfncauvmzoxnho.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5cWR5c21mbmNhaHR1bXZveG5oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyNTQzMzYsImV4cCI6MjA5NzgzMDMzNn0.E6ujyKDPm5uVUUE6U4A7h6k44AGsl26ljfrYBmjOWNg';
+const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
 // Elementos - Acuerdos
 const setupAgreementsBtn = document.getElementById('setup-agreements-btn');
@@ -99,30 +98,44 @@ function playBeep() {
     oscillator.stop(audioCtx.currentTime + 0.5);
 }
 
-// Persistencia segura
-function saveState() {
+// -- ESTADO E INICIALIZACIÓN --
+
+async function saveState() {
     try {
-        const stateToSave = { ...appState, timerInterval: null, isTimerRunning: false };
-        localStorage.setItem('meetingManager_stateV2', JSON.stringify(stateToSave));
+        syncStatus.textContent = "🟡 Guardando...";
+        const { error } = await supabaseClient
+            .from('app_state')
+            .upsert({ id: 1, data: appState.agendas });
+            
+        if (error) throw error;
+        syncStatus.textContent = "🟢 Sincronizado";
     } catch (e) {
-        console.warn('No se puede guardar en LocalStorage (probablemente abierto localmente)');
+        console.error("Error guardando:", e);
+        syncStatus.textContent = "🔴 Error de Sync";
     }
 }
 
-function loadState() {
+async function loadState() {
     try {
-        const saved = localStorage.getItem('meetingManager_stateV2');
-        if (saved) {
-            const parsed = JSON.parse(saved);
-            appState = { ...appState, ...parsed };
+        syncStatus.textContent = "🟡 Cargando...";
+        const { data, error } = await supabaseClient
+            .from('app_state')
+            .select('data')
+            .eq('id', 1)
+            .single();
+            
+        if (data && data.data) {
+            appState.agendas = data.data;
         }
+        syncStatus.textContent = "🟢 Sincronizado";
     } catch (e) {
-        console.warn("No se pudo cargar el LocalStorage");
+        console.error("Error cargando desde Supabase", e);
+        syncStatus.textContent = "🔴 Error de Red";
     }
 }
 
-function init() {
-    loadState();
+async function init() {
+    await loadState();
     setupEventListeners();
     renderAgendasList();
 }
@@ -161,44 +174,6 @@ function setupEventListeners() {
     newMeetingBtn.addEventListener('click', () => {
         switchScreen(summaryScreen, agendasListScreen);
         renderAgendasList();
-    });
-    
-    // Sync Manual
-    syncModalBtn.addEventListener('click', () => syncModal.classList.add('active'));
-    closeSyncBtn.addEventListener('click', () => syncModal.classList.remove('active'));
-    
-    exportDataBtn.addEventListener('click', async () => {
-        try {
-            const dataStr = JSON.stringify(appState.agendas);
-            const encoded = btoa(encodeURIComponent(dataStr));
-            await navigator.clipboard.writeText(`REUNIONES_SYNC:${encoded}`);
-            alert('¡Agendas copiadas al portapapeles! Ahora pégalas en tu otro dispositivo.');
-        } catch (e) {
-            alert('Error al copiar. Asegúrate de dar permisos al portapapeles.');
-        }
-    });
-    
-    importDataBtn.addEventListener('click', async () => {
-        try {
-            const text = await navigator.clipboard.readText();
-            if (!text.startsWith('REUNIONES_SYNC:')) {
-                alert('El texto en el portapapeles no es válido para sincronizar.');
-                return;
-            }
-            const encoded = text.replace('REUNIONES_SYNC:', '');
-            const decoded = decodeURIComponent(atob(encoded));
-            const parsed = JSON.parse(decoded);
-            
-            if (Array.isArray(parsed)) {
-                appState.agendas = parsed;
-                saveState();
-                renderAgendasList();
-                syncModal.classList.remove('active');
-                alert('¡Agendas sincronizadas con éxito!');
-            }
-        } catch (e) {
-            alert('Error al pegar. Intenta copiar de nuevo desde el otro dispositivo o revisa los permisos.');
-        }
     });
 
     // Modal de Acuerdos
