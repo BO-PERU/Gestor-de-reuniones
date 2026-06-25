@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestor de Tiempo de Reuniones</title>
-    <link rel="stylesheet" href="styles.css?v=8">
+    <link rel="stylesheet" href="styles.css?v=2">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="apple-touch-icon" href="icon.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -127,9 +127,10 @@
                 <div class="topic-indicator">Tema Actual</div>
                 <h3 id="current-topic-name">Nombre del Tema</h3>
                 <div id="main-timer" class="time-huge">00:00</div>
-                <div class="timer-details">
+                <div id="total-time-left" style="font-size: 0.9rem; margin-top: 0.5rem; font-weight: 500; color: var(--accent-color); text-align: center;">Total Restante: 00:00</div>
+                <div class="timer-details" style="margin-top: 1rem;">
                     <span>Transcurrido: <span id="elapsed-time">00:00</span></span>
-                    <span class="badge" id="topic-duration-badge">0m asignados</span>
+                    <span class="badge" id="topic-duration-badge" style="max-width: 100%; white-space: normal; text-align: center; line-height: 1.4;">0m asignados</span>
                 </div>
             </div>
 
@@ -163,43 +164,52 @@
         
         <!-- El Modal de Sync Manual fue eliminado -->
 
-        <!-- Modal de Acuerdos -->
-        <div id="agreements-modal" class="modal">
-            <div class="glass-card modal-content" style="max-width: 500px; max-height: 90vh; overflow-y: auto;">
-                <h3 style="margin-top: 0;">Acuerdos de la Reunión</h3>
-                <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1rem;">Registra los puntos importantes que deben quedar grabados.</p>
-                
-                <div class="input-group" style="text-align: left;">
-                    <label for="agreement-text">Acuerdo / Tarea</label>
-                    <input type="text" id="agreement-text" placeholder="Ej. Enviar el reporte de ventas" autocomplete="off">
-                </div>
-                <div class="input-row" style="text-align: left;">
-                    <div class="input-group">
-                        <label for="agreement-responsible">Responsable</label>
-                        <input type="text" id="agreement-responsible" placeholder="Ej. María" autocomplete="off">
-                    </div>
-                    <div class="input-group">
-                        <label for="agreement-date">Fecha Límite</label>
-                        <input type="date" id="agreement-date">
-                    </div>
-                </div>
-                <button id="add-agreement-btn" class="btn primary full-width" style="margin-bottom: 1rem;">Agregar Acuerdo</button>
-
-                <div class="agreements-list-container" style="text-align: left; margin-bottom: 1rem;">
-                    <ul id="agreements-list" class="topics-list">
-                        <li class="empty-state">No hay acuerdos registrados.</li>
-                    </ul>
-                </div>
-
-                <div style="display: flex; gap: 0.5rem;">
-                    <button id="copy-agreements-btn" class="btn secondary full-width">📋 Copiar/Exportar</button>
-                    <button id="close-agreements-btn" class="btn text-btn full-width">Cerrar</button>
-                </div>
+        <!-- Pantalla Interactiva de Acuerdos por Tema -->
+        <section id="agreements-screen" class="screen">
+            <header>
+                <h2>Acuerdos de la Reunión</h2>
+                <p>Haga clic en el tema vinculado al acuerdo para registrar los detalles.</p>
+            </header>
+            
+            <div id="agreements-topics-container" class="agreements-topics-container">
+                <!-- Se llenará dinámicamente con los temas y acordeones -->
             </div>
+            
+            <button id="finalize-agreements-btn" class="btn primary full-width" style="margin-top: 1rem;">Finalizar Acuerdos y Generar Acta PDF</button>
+        </section>
+    </div>
+
+    <!-- Plantilla Oculta para el Acta en PDF -->
+    <div id="pdf-template-container" style="display: none; background: white; color: black; padding: 40px; font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto;">
+        <div style="border-bottom: 2px solid #1e293b; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+                <h1 style="color: #1e293b; font-size: 24px; margin: 0 0 10px 0;">ACTA DE REUNIÓN</h1>
+                <p id="pdf-meeting-title" style="font-size: 18px; font-weight: bold; margin: 0;"></p>
+                <p id="pdf-meeting-client" style="color: #64748b; margin: 5px 0 0 0;"></p>
+                <p id="pdf-meeting-date" style="color: #64748b; margin: 5px 0 0 0;"></p>
+            </div>
+            <img src="logo.png" alt="Logo" style="max-height: 80px; max-width: 150px; border-radius: 12px; object-fit: contain;">
+        </div>
+        
+        <h2 style="font-size: 18px; color: #3b82f6; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">1. RESUMEN DE TIEMPOS</h2>
+        <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 30px;">
+            <p style="margin: 0;"><strong>Tiempo Planificado Total:</strong> <span id="pdf-planned-time"></span></p>
+            <p style="margin: 5px 0 0 0;"><strong>Tiempo Real Invertido:</strong> <span id="pdf-actual-time"></span></p>
+        </div>
+        
+        <h2 style="font-size: 18px; color: #3b82f6; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">2. AGENDA TRATADA Y ACUERDOS</h2>
+        <div id="pdf-topics-list">
+            <!-- Los temas y acuerdos se inyectarán aquí -->
+        </div>
+        
+        <div style="margin-top: 50px; text-align: center; color: #94a3b8; font-size: 12px; border-top: 1px solid #e2e8f0; padding-top: 20px;">
+            <p>Generado automáticamente mediante el Gestor de Reuniones.</p>
         </div>
     </div>
 
+    <!-- Librerías Externas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=7"></script>
+    <script src="app.js?v=11"></script>
 </body>
 </html>

@@ -593,3 +593,63 @@ input:focus {
     padding: 2rem;
     text-align: center;
 }
+
+.agreements-topics-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.agreement-topic-card {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.agreement-topic-header {
+    padding: 1rem;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(15, 23, 42, 0.4);
+    transition: background 0.2s;
+}
+
+.agreement-topic-header:hover {
+    background: rgba(30, 41, 59, 0.8);
+}
+
+.agreement-topic-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+}
+
+.agreement-topic-header .badge {
+    background: var(--accent-color);
+    color: white;
+    padding: 0.2rem 0.6rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.agreement-topic-body {
+    padding: 1.5rem;
+    border-top: 1px solid var(--glass-border);
+    display: none;
+    background: rgba(15, 23, 42, 0.2);
+}
+
+.agreement-topic-card.active .agreement-topic-body {
+    display: block;
+}
+
+.agreement-topic-card.active .agreement-topic-header {
+    border-bottom-color: transparent;
+    background: rgba(59, 130, 246, 0.15); /* Subtle highlight when active */
+}
