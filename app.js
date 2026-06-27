@@ -3,7 +3,9 @@ let appState = {
     agendas: [], // Array de objetos agenda
     currentAgendaId: null,
     isTimerRunning: false,
-    timerInterval: null
+    timerInterval: null,
+    currentView: 'clients', // 'clients' | 'meetings'
+    selectedClient: null
 };
 
 // Pantallas
@@ -13,6 +15,11 @@ const timerScreen = document.getElementById('timer-screen');
 const summaryScreen = document.getElementById('summary-screen');
 
 // Elementos - Listado
+const clientsListContainer = document.getElementById('clients-list-container');
+const clientsList = document.getElementById('clients-list');
+const clientMeetingsContainer = document.getElementById('client-meetings-container');
+const backToClientsBtn = document.getElementById('back-to-clients-btn');
+const selectedClientTitle = document.getElementById('selected-client-title');
 const agendasList = document.getElementById('agendas-list');
 const createAgendaBtn = document.getElementById('create-agenda-btn');
 
@@ -277,6 +284,24 @@ function setupEventListeners() {
     summaryAgreementsBtn.addEventListener('click', openAgreementsScreen);
     
     finalizeAgreementsBtn.addEventListener('click', generatePDF);
+    
+    backToClientsBtn.addEventListener('click', () => {
+        appState.currentView = 'clients';
+        appState.selectedClient = null;
+        renderAgendasList();
+        updateTabsUI();
+    });
+    
+    // Configurar Pestañas (Tabs)
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const view = e.target.getAttribute('data-view');
+            appState.currentView = view;
+            renderAgendasList();
+            updateTabsUI();
+        });
+    });
 
     window.addEventListener('beforeunload', (e) => {
         if (appState.isTimerRunning) {
@@ -295,14 +320,188 @@ function switchScreen(from, to) {
     to.classList.add('active');
 }
 
+function updateTabsUI() {
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        if (btn.getAttribute('data-view') === appState.currentView || (btn.getAttribute('data-view') === 'clients' && appState.currentView === 'meetings')) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+}
+
 // -- LÓGICA DE LISTADO --
 function renderAgendasList() {
+    if (appState.currentView === 'clients') {
+        renderClientsList();
+    } else if (appState.currentView === 'meetings') {
+        renderClientMeetings(appState.selectedClient);
+    } else {
+        renderFilteredList(appState.currentView);
+    }
+}
+
+function renderClientsList() {
+    clientsListContainer.style.display = 'block';
+    clientMeetingsContainer.style.display = 'none';
+    
     if (appState.agendas.length === 0) {
-        agendasList.innerHTML = '<li class="empty-state">No tienes agendas guardadas.</li>';
+        clientsList.innerHTML = '<li class="empty-state">No tienes agendas guardadas.</li>';
         return;
     }
-    agendasList.innerHTML = '';
+    
+    // Agrupar por cliente
+    const clientsMap = {};
     appState.agendas.forEach(agenda => {
+        const clientName = agenda.client && agenda.client.trim() !== '' ? agenda.client.trim() : 'Sin cliente';
+        if (!clientsMap[clientName]) {
+            clientsMap[clientName] = 0;
+        }
+        clientsMap[clientName]++;
+    });
+    
+    clientsList.innerHTML = '';
+    const sortedClients = Object.keys(clientsMap).sort((a, b) => a.localeCompare(b));
+    
+    sortedClients.forEach(clientName => {
+        const li = document.createElement('li');
+        li.className = 'agenda-card';
+        li.style.cursor = 'pointer';
+        
+        li.innerHTML = `
+            <div class="title" style="font-size: 1.2rem; color: var(--accent-color);">${clientName}</div>
+            <div class="details" style="margin-top: 0.5rem;">
+                <span>📂 ${clientsMap[clientName]} ${clientsMap[clientName] === 1 ? 'reunión' : 'reuniones'}</span>
+            </div>
+        `;
+        
+        li.addEventListener('click', () => {
+            appState.currentView = 'meetings';
+            appState.selectedClient = clientName;
+            renderAgendasList();
+        });
+        
+        clientsList.appendChild(li);
+    });
+}
+
+function renderClientMeetings(clientName) {
+    clientsListContainer.style.display = 'none';
+    clientMeetingsContainer.style.display = 'block';
+    backToClientsBtn.style.display = 'inline-block';
+    
+    selectedClientTitle.textContent = clientName;
+    
+    // Filtrar y ordenar (más reciente a antigua)
+    let filtered = appState.agendas.filter(a => {
+        const cName = a.client && a.client.trim() !== '' ? a.client.trim() : 'Sin cliente';
+        return cName === clientName;
+    });
+    
+    filtered.sort((a, b) => {
+        const dateA = new Date(a.date || 0).getTime();
+        const dateB = new Date(b.date || 0).getTime();
+        return dateB - dateA; // Descendente
+    });
+    
+    if (filtered.length === 0) {
+        agendasList.innerHTML = '<li class="empty-state">No hay reuniones para este cliente.</li>';
+        return;
+    }
+    
+    agendasList.innerHTML = '';
+    filtered.forEach(agenda => {
+        const li = document.createElement('li');
+        li.className = 'agenda-card';
+        
+        const dateStr = agenda.date ? new Date(agenda.date + 'T12:00:00').toLocaleDateString() : 'Sin fecha';
+        
+        li.innerHTML = `
+            <div class="title">${agenda.name || 'Reunión sin nombre'}</div>
+            <div class="details">
+                <span>📅 ${dateStr}</span>
+                <span>⏱ ${agenda.totalTimeMinutes}m</span>
+            </div>
+            <div class="card-actions" style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+                <button class="btn primary small start-agenda-btn" data-id="${agenda.id}">Comenzar</button>
+                <button class="btn secondary small edit-agenda-btn" data-id="${agenda.id}">Editar</button>
+            </div>
+            <button class="delete-agenda-btn" title="Eliminar agenda">🗑</button>
+        `;
+        
+        li.querySelector('.start-agenda-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            startMeeting(agenda.id);
+        });
+        
+        li.querySelector('.edit-agenda-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            openAgenda(agenda.id);
+        });
+        
+        li.querySelector('.delete-agenda-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            if(confirm('¿Eliminar esta agenda?')) {
+                appState.agendas = appState.agendas.filter(a => a.id !== agenda.id);
+                saveState();
+                renderAgendasList();
+            }
+        });
+        
+        agendasList.appendChild(li);
+    });
+}
+
+function renderFilteredList(filterType) {
+    clientsListContainer.style.display = 'none';
+    clientMeetingsContainer.style.display = 'block';
+    backToClientsBtn.style.display = 'none'; // Ocultar botón volver
+    
+    // Ajustar Título
+    const titles = {
+        'last7': 'Últimos 7 días',
+        'todo': 'Por Realizar',
+        'done': 'Realizadas'
+    };
+    selectedClientTitle.textContent = titles[filterType] || 'Reuniones';
+    
+    // Fechas base para filtros
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const sevenDaysAgo = new Date(today);
+    sevenDaysAgo.setDate(today.getDate() - 7);
+    
+    // Filtrar
+    let filtered = appState.agendas.filter(a => {
+        if (!a.date) return filterType === 'todo'; // Si no tiene fecha, es 'por realizar'
+        
+        const mDate = new Date(a.date + 'T12:00:00');
+        mDate.setHours(0,0,0,0);
+        
+        if (filterType === 'todo') {
+            return mDate >= today;
+        } else if (filterType === 'done') {
+            return mDate < today;
+        } else if (filterType === 'last7') {
+            return mDate >= sevenDaysAgo && mDate <= today;
+        }
+        return true;
+    });
+    
+    // Ordenar (más reciente a antigua)
+    filtered.sort((a, b) => {
+        const dateA = new Date(a.date || 0).getTime();
+        const dateB = new Date(b.date || 0).getTime();
+        return dateB - dateA;
+    });
+    
+    if (filtered.length === 0) {
+        agendasList.innerHTML = '<li class="empty-state">No se encontraron reuniones.</li>';
+        return;
+    }
+    
+    agendasList.innerHTML = '';
+    filtered.forEach(agenda => {
         const li = document.createElement('li');
         li.className = 'agenda-card';
         
@@ -730,19 +929,31 @@ async function generatePDF() {
         });
 
         const element = document.getElementById('pdf-template-container');
-        element.style.display = 'block'; // Mostrar temporalmente para el render
+        // Para forzar el inicio al tope, posicionamos el elemento de forma absoluta
+        element.style.display = 'block';
+        element.style.position = 'absolute';
+        element.style.top = '0';
+        element.style.left = '0';
+        element.style.zIndex = '-1000'; // Ocultar visualmente
+
+        // Guardar la posición del scroll y subir al tope
+        const originalScroll = window.scrollY;
+        window.scrollTo(0, 0);
 
         const opt = {
             margin:       10,
             filename:     `Acta_${agenda.name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.pdf`,
             image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { scale: 2, useCORS: true },
+            html2canvas:  { scale: 2, useCORS: true, scrollY: 0 },
             jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
 
         await html2pdf().set(opt).from(element).save();
         
-        element.style.display = 'none'; // Ocultar de nuevo
+        // Restaurar estado
+        element.style.display = 'none';
+        element.style.position = 'static';
+        window.scrollTo(0, originalScroll);
         alert("¡Acta PDF generada y descargada con éxito!");
         
     } catch (e) {

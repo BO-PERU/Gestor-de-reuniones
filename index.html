@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestor de Tiempo de Reuniones</title>
     <link rel="stylesheet" href="styles.css?v=2">
+    <link rel="stylesheet" href="styles_tabs.css?v=1">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="apple-touch-icon" href="icon.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -23,10 +24,30 @@
                 <p>Selecciona una reunión o crea una nueva.</p>
             </header>
             
+            <!-- Barra de Pestañas (Filtros) -->
+            <div class="tabs-container" style="display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.5rem; margin-bottom: 1rem; border-bottom: 1px solid var(--glass-border);">
+                <button class="tab-btn active" data-view="clients">Por Cliente</button>
+                <button class="tab-btn" data-view="last7">Últimos 7 días</button>
+                <button class="tab-btn" data-view="todo">Por Realizar</button>
+                <button class="tab-btn" data-view="done">Realizadas</button>
+            </div>
+            
             <div class="agendas-container">
-                <ul id="agendas-list" class="agendas-list">
-                    <li class="empty-state">No tienes agendas guardadas.</li>
-                </ul>
+                <!-- Vista de Clientes -->
+                <div id="clients-list-container">
+                    <ul id="clients-list" class="agendas-list">
+                        <li class="empty-state">Cargando clientes...</li>
+                    </ul>
+                </div>
+                
+                <!-- Vista de Reuniones del Cliente -->
+                <div id="client-meetings-container" style="display: none;">
+                    <button id="back-to-clients-btn" class="btn text-btn" style="margin-bottom: 1rem; padding-left: 0;">← Volver a Clientes</button>
+                    <h3 id="selected-client-title" style="margin-top: 0; color: var(--accent-color);">Cliente</h3>
+                    <ul id="agendas-list" class="agendas-list">
+                        <li class="empty-state">No hay reuniones.</li>
+                    </ul>
+                </div>
             </div>
             
             <button id="create-agenda-btn" class="btn primary full-width">Crear Nueva Agenda</button>
@@ -210,6 +231,6 @@
     <!-- Librerías Externas -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=11"></script>
+    <script src="app.js?v=12"></script>
 </body>
 </html>
