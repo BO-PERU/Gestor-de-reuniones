@@ -817,8 +817,6 @@ function createNewAgenda() {
 function openAgenda(id) {
     appState.currentAgendaId = id;
     const agenda = getCurrentAgenda();
-    if (agenda) {
-        loadAgendaIntoSetup(agenda);
     if (!agenda) return;
     
     meetingNameInput.value = agenda.name || '';
