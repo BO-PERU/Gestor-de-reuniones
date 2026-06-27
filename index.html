@@ -138,16 +138,19 @@
                     <input type="text" id="meeting-name" placeholder="Ej. Sync Semanal" autocomplete="off">
                 </div>
                 
-                <div class="input-row">
-                    <div class="input-group">
-                        <label for="meeting-client">Cliente / Proyecto</label>
-                        <input type="text" id="meeting-client" placeholder="Ej. Acme Corp" autocomplete="off">
+                <details style="margin-bottom: 1.5rem; color: var(--text-secondary); border: 1px solid var(--glass-border); padding: 0.8rem; border-radius: 8px; background: rgba(255,255,255,0.02);">
+                    <summary style="font-size: 0.95rem; cursor: pointer; outline: none; font-weight: 500;">Datos Adicionales del Cliente (Opcional)</summary>
+                    <div class="input-row" style="margin-top: 1rem;">
+                        <div class="input-group">
+                            <label for="meeting-client">Cliente / Proyecto</label>
+                            <input type="text" id="meeting-client" placeholder="Ej. Acme Corp" autocomplete="off">
+                        </div>
+                        <div class="input-group">
+                            <label for="guest-email">Email del Cliente (opcional)</label>
+                            <input type="email" id="guest-email" placeholder="cliente@empresa.com" autocomplete="off">
+                        </div>
                     </div>
-                    <div class="input-group">
-                        <label for="guest-email">Email del Cliente (opcional)</label>
-                        <input type="email" id="guest-email" placeholder="cliente@empresa.com" autocomplete="off">
-                    </div>
-                </div>
+                </details>
                 <div class="input-row">
                     <div class="input-group">
                         <label for="meeting-date">Fecha</label>
