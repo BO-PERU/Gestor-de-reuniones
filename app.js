@@ -283,7 +283,7 @@ function setupEventListeners() {
             });
             
             if (error) {
-                alert("Error de acceso: Por favor solicite una cuenta al administrador.");
+                alert("Error al iniciar sesión: " + error.message);
                 authSubmitBtn.disabled = false;
                 authSubmitBtn.textContent = "Iniciar Sesión";
             }
