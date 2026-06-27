@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestor de Tiempo de Reuniones</title>
-    <link rel="stylesheet" href="styles.css?v=3">
+    <link rel="stylesheet" href="styles.css?v=4">
     <link rel="stylesheet" href="styles_tabs.css?v=1">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="apple-touch-icon" href="icon.png">
@@ -15,7 +15,7 @@
 <body>
     <div class="app-container">
         <!-- Pantalla de Login / Autenticación -->
-        <section id="auth-screen" class="screen active" style="display: flex; flex-direction: column; justify-content: center;">
+        <section id="auth-screen" class="screen active" style="justify-content: center; min-height: 80vh;">
             <div style="text-align: center; margin-bottom: 2rem;">
                 <h1 style="font-size: 2rem; color: var(--accent-color); margin: 0 0 0.5rem 0;">Gestor Pro</h1>
                 <p style="color: var(--text-secondary); margin: 0;">Inicia sesión para gestionar tus reuniones</p>
@@ -57,6 +57,7 @@
                 <button class="tab-btn" data-view="last7">Últimos 7 días</button>
                 <button class="tab-btn" data-view="todo">Por Realizar</button>
                 <button class="tab-btn" data-view="done">Realizadas</button>
+                <button class="tab-btn" data-view="global-analytics" style="color: #a78bfa;">📊 Mi Dashboard Global</button>
             </div>
             
             <div class="agendas-container">
@@ -65,6 +66,14 @@
                     <ul id="clients-list" class="agendas-list">
                         <li class="empty-state">Cargando clientes...</li>
                     </ul>
+                </div>
+
+                <!-- Dashboard Global de Analíticas -->
+                <div id="global-analytics-container" style="display: none;">
+                    <div id="global-kpi-cards" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;"></div>
+                    <div id="global-chart-container" class="glass-card" style="margin-bottom: 1.5rem; text-align: center;"></div>
+                    <h3 style="margin-bottom: 1rem; font-size: 1.1rem; color: var(--accent-color);">Carga por Responsable</h3>
+                    <div id="global-responsible-table"></div>
                 </div>
                 
                 <!-- Vista de Reuniones del Cliente -->
@@ -79,7 +88,8 @@
                     <!-- Client Sub-Tabs -->
                     <div class="tabs-container" style="margin-bottom: 1rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 0;">
                         <button class="client-tab-btn active" data-view="meetings">📅 Reuniones</button>
-                        <button class="client-tab-btn" data-view="tasks">📝 Tareas Pendientes</button>
+                        <button class="client-tab-btn" data-view="tasks">📝 Tareas</button>
+                        <button class="client-tab-btn" data-view="analytics">📊 Analíticas</button>
                     </div>
 
                     <div id="client-agendas-view">
@@ -92,6 +102,13 @@
                         <ul id="client-tasks-list" class="agendas-list">
                             <li class="empty-state">No hay tareas pendientes.</li>
                         </ul>
+                    </div>
+
+                    <div id="client-analytics-view" style="display: none;">
+                        <div id="client-kpi-cards" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;"></div>
+                        <div id="client-chart-container" class="glass-card" style="margin-bottom: 1.5rem; text-align: center;"></div>
+                        <h3 style="margin-bottom: 1rem; font-size: 1.1rem; color: var(--accent-color);">Rendimiento del Equipo</h3>
+                        <div id="client-responsible-table"></div>
                     </div>
                 </div>
             </div>
@@ -283,6 +300,6 @@
     <!-- Librerías Externas -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=17"></script>
+    <script src="app.js?v=18"></script>
 </body>
 </html>

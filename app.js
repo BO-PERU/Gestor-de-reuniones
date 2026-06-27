@@ -24,6 +24,7 @@ const logoutBtn = document.getElementById('logout-btn');
 
 // Elementos - Listado
 const clientsListContainer = document.getElementById('clients-list-container');
+const globalAnalyticsContainer = document.getElementById('global-analytics-container');
 const clientsList = document.getElementById('clients-list');
 const clientMeetingsContainer = document.getElementById('client-meetings-container');
 const backToClientsBtn = document.getElementById('back-to-clients-btn');
@@ -33,6 +34,7 @@ const createAgendaBtn = document.getElementById('create-agenda-btn');
 const clientAgendasView = document.getElementById('client-agendas-view');
 const clientTasksView = document.getElementById('client-tasks-view');
 const clientTasksList = document.getElementById('client-tasks-list');
+const clientAnalyticsView = document.getElementById('client-analytics-view');
 const clientTabBtns = document.querySelectorAll('.client-tab-btn');
 
 // Elementos - Setup
@@ -314,10 +316,17 @@ function setupEventListeners() {
             if (view === 'meetings') {
                 clientAgendasView.style.display = 'block';
                 clientTasksView.style.display = 'none';
-            } else {
+                clientAnalyticsView.style.display = 'none';
+            } else if (view === 'tasks') {
                 clientAgendasView.style.display = 'none';
                 clientTasksView.style.display = 'block';
+                clientAnalyticsView.style.display = 'none';
                 renderClientTasks();
+            } else {
+                clientAgendasView.style.display = 'none';
+                clientTasksView.style.display = 'none';
+                clientAnalyticsView.style.display = 'block';
+                renderClientAnalytics();
             }
         });
     });
@@ -460,10 +469,18 @@ function updateTabsUI() {
 
 // -- LÓGICA DE LISTADO --
 function renderAgendasList() {
+    // Esconder Analytics global por defecto
+    globalAnalyticsContainer.style.display = 'none';
+    
     if (appState.currentView === 'clients') {
         renderClientsList();
     } else if (appState.currentView === 'meetings') {
         renderClientMeetings(appState.selectedClient);
+    } else if (appState.currentView === 'global-analytics') {
+        clientsListContainer.style.display = 'none';
+        clientMeetingsContainer.style.display = 'none';
+        globalAnalyticsContainer.style.display = 'block';
+        renderGlobalAnalytics();
     } else {
         renderFilteredList(appState.currentView);
     }
@@ -525,6 +542,7 @@ function renderClientMeetings(clientName) {
     clientTabBtns[0].classList.add('active'); // Selecciona 'Reuniones' por defecto
     clientAgendasView.style.display = 'block';
     clientTasksView.style.display = 'none';
+    clientAnalyticsView.style.display = 'none';
     
     const clientAgendas = appState.agendas.filter(a => a.client === clientName);
     let filtered = appState.agendas.filter(a => {
@@ -665,14 +683,21 @@ function renderClientTasks() {
             statusBadge = '<span class="badge" style="background: rgba(255,255,255,0.1); color: var(--text-secondary);">✅ Lista</span>';
         }
         
+        // Badge criticidad
+        let critBadge = '';
+        if (task.criticality === 'Alta') critBadge = '🔥 Alta';
+        else if (task.criticality === 'Media') critBadge = '⚡️ Media';
+        else if (task.criticality === 'Baja') critBadge = '❄️ Baja';
+
         li.innerHTML = `
             <div style="display: flex; align-items: flex-start; gap: 1rem;">
                 <input type="checkbox" class="task-checkbox" style="margin-top: 5px; width: 20px; height: 20px; cursor: pointer;" ${task.completed ? 'checked' : ''}>
                 <div style="flex: 1;">
                     <div class="title" style="font-size: 1.1rem; ${task.completed ? 'text-decoration: line-through; color: var(--text-secondary);' : ''}">${task.text || 'Sin descripción'}</div>
-                    <div class="details" style="margin-top: 0.5rem;">
+                    <div class="details" style="margin-top: 0.5rem; gap: 0.8rem;">
                         <span>👤 ${task.responsible || 'Sin responsable'}</span>
                         <span>📅 Vence: ${task.deadline ? new Date(task.deadline + 'T12:00:00').toLocaleDateString() : 'Sin fecha'}</span>
+                        ${critBadge ? `<span style="font-size: 0.8rem; background: rgba(255,255,255,0.05); padding: 0.2rem 0.5rem; border-radius: 4px;">${critBadge}</span>` : ''}
                         ${statusBadge}
                     </div>
                     <div style="margin-top: 1rem; font-size: 0.8rem; color: var(--text-secondary); border-top: 1px solid var(--glass-border); padding-top: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
@@ -1034,9 +1059,17 @@ function renderAgreementsTopics() {
                     <input type="text" id="agr-resp-${topic.id}" placeholder="Ej. María" autocomplete="off">
                 </div>
                 <div class="input-group">
-                    <label>Fecha Límite</label>
-                    <input type="date" id="agr-date-${topic.id}">
+                    <label>Criticidad</label>
+                    <select id="agr-crit-${topic.id}" style="padding: 0.8rem; border-radius: 8px; background: rgba(15, 23, 42, 0.6); color: var(--text-primary); border: 1px solid var(--glass-border);">
+                        <option value="Alta">🔥 Alta</option>
+                        <option value="Media" selected>⚡️ Media</option>
+                        <option value="Baja">❄️ Baja</option>
+                    </select>
                 </div>
+            </div>
+            <div class="input-group" style="text-align: left; margin-bottom: 1rem;">
+                <label>Fecha Límite</label>
+                <input type="date" id="agr-date-${topic.id}">
             </div>
             <button class="btn secondary full-width small add-agr-btn" data-topic="${topic.id}" style="margin-bottom: 1.5rem;">+ Agregar a este tema</button>
         `;
@@ -1048,6 +1081,11 @@ function renderAgreementsTopics() {
         } else {
             topicAgreements.forEach(agr => {
                 const dateFormatted = agr.date ? new Date(agr.date + 'T12:00:00').toLocaleDateString() : 'Sin fecha';
+                let badgeCrit = '';
+                if(agr.criticality === 'Alta') badgeCrit = '🔥';
+                else if(agr.criticality === 'Media') badgeCrit = '⚡️';
+                else if(agr.criticality === 'Baja') badgeCrit = '❄️';
+                
                 listHtml += `
                     <li class="topic-item" style="flex-direction: column; align-items: flex-start; gap: 0.5rem; padding: 0.75rem; background: rgba(15,23,42,0.4);">
                         <div style="display: flex; justify-content: space-between; width: 100%;">
@@ -1057,6 +1095,7 @@ function renderAgreementsTopics() {
                         <div style="font-size: 0.8rem; color: var(--text-secondary); display: flex; gap: 1rem;">
                             <span>👤 ${agr.responsible || 'N/A'}</span>
                             <span>📅 ${dateFormatted}</span>
+                            ${badgeCrit ? `<span>${badgeCrit}</span>` : ''}
                         </div>
                     </li>
                 `;
@@ -1083,6 +1122,7 @@ function renderAgreementsTopics() {
             const text = document.getElementById(`agr-text-${topic.id}`).value.trim();
             const resp = document.getElementById(`agr-resp-${topic.id}`).value.trim();
             const date = document.getElementById(`agr-date-${topic.id}`).value;
+            const crit = document.getElementById(`agr-crit-${topic.id}`).value;
             
             if (!text) return alert("El acuerdo no puede estar vacío.");
             
@@ -1091,7 +1131,10 @@ function renderAgreementsTopics() {
                 topicId: topic.id,
                 text,
                 responsible: resp,
-                date
+                date,
+                deadline: date,
+                criticality: crit,
+                completed: false
             });
             saveState();
             renderAgreementsTopics();
@@ -1404,3 +1447,95 @@ function formatTime(totalSeconds) {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+// -- ANALÍTICAS --
+function renderGlobalAnalytics() {
+    let allTasks = [];
+    appState.agendas.forEach(agenda => {
+        if (agenda.agreements) {
+            agenda.agreements.forEach(agr => {
+                allTasks.push(agr);
+            });
+        }
+    });
+    generateAnalyticsHTML(allTasks, 'global');
+}
+
+function renderClientAnalytics() {
+    const clientAgendas = appState.agendas.filter(a => a.client === appState.selectedClient);
+    let allTasks = [];
+    clientAgendas.forEach(agenda => {
+        if (agenda.agreements) {
+            agenda.agreements.forEach(agr => {
+                allTasks.push(agr);
+            });
+        }
+    });
+    generateAnalyticsHTML(allTasks, 'client');
+}
+
+function generateAnalyticsHTML(tasks, prefix) {
+    const totalTasks = tasks.length;
+    const completedTasks = tasks.filter(t => t.completed).length;
+    const pendingTasks = totalTasks - completedTasks;
+    const completionRate = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
+
+    const kpiCards = document.getElementById(`${prefix}-kpi-cards`);
+    kpiCards.innerHTML = `
+        <div class="glass-card" style="text-align:center; padding: 1.5rem;">
+            <div style="font-size: 2.5rem; color: var(--accent-color); font-weight: bold;">${pendingTasks}</div>
+            <div style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 0.5rem;">Tareas Pendientes</div>
+        </div>
+        <div class="glass-card" style="text-align:center; padding: 1.5rem;">
+            <div style="font-size: 2.5rem; color: ${completionRate >= 80 ? 'var(--success-color)' : (completionRate >= 50 ? 'var(--warning-color)' : 'var(--danger-color)')}; font-weight: bold;">${completionRate}%</div>
+            <div style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 0.5rem;">Cumplimiento</div>
+        </div>
+    `;
+
+    // Criticality
+    const critCounts = { Alta: 0, Media: 0, Baja: 0 };
+    tasks.filter(t => !t.completed).forEach(t => {
+        if (t.criticality === 'Alta') critCounts.Alta++;
+        else if (t.criticality === 'Media') critCounts.Media++;
+        else critCounts.Baja++; // Asumimos Baja por defecto o vacio
+    });
+
+    const chartContainer = document.getElementById(`${prefix}-chart-container`);
+    chartContainer.innerHTML = `
+        <h4 style="margin-bottom: 1.5rem; color: var(--text-secondary); font-size: 1rem;">Pendientes por Criticidad</h4>
+        <div style="display: flex; justify-content: space-around; align-items: center;">
+            <div><span style="font-size: 2rem; color: var(--danger-color); font-weight: bold;">${critCounts.Alta}</span><br><span style="font-size: 0.85rem; color: var(--text-secondary);">🔥 Alta</span></div>
+            <div><span style="font-size: 2rem; color: var(--warning-color); font-weight: bold;">${critCounts.Media}</span><br><span style="font-size: 0.85rem; color: var(--text-secondary);">⚡️ Media</span></div>
+            <div><span style="font-size: 2rem; color: #60a5fa; font-weight: bold;">${critCounts.Baja}</span><br><span style="font-size: 0.85rem; color: var(--text-secondary);">❄️ Baja</span></div>
+        </div>
+    `;
+
+    // Responsible Table
+    const responsibleStats = {};
+    tasks.forEach(t => {
+        const resp = t.responsible ? t.responsible.trim() : 'Sin Asignar';
+        if (!responsibleStats[resp]) responsibleStats[resp] = { total: 0, completed: 0 };
+        responsibleStats[resp].total++;
+        if (t.completed) responsibleStats[resp].completed++;
+    });
+
+    let tableHtml = '<div style="display: flex; flex-direction: column; gap: 0.8rem;">';
+    for (const [resp, stats] of Object.entries(responsibleStats)) {
+        const rate = Math.round((stats.completed / stats.total) * 100);
+        tableHtml += `
+            <div class="glass-card" style="padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; background: rgba(30, 41, 59, 0.4);">
+                <div>
+                    <strong style="font-size: 1.1rem; color: var(--text-primary);">${resp}</strong>
+                    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.3rem;">Completadas: ${stats.completed} de ${stats.total}</div>
+                </div>
+                <div style="font-size: 1.4rem; font-weight: bold; color: ${rate >= 80 ? 'var(--success-color)' : (rate >= 50 ? 'var(--warning-color)' : 'var(--danger-color)')};">
+                    ${rate}%
+                </div>
+            </div>
+        `;
+    }
+    tableHtml += '</div>';
+    if (Object.keys(responsibleStats).length === 0) tableHtml = '<p class="empty-state">No hay responsables asignados.</p>';
+
+    document.getElementById(`${prefix}-responsible-table`).innerHTML = tableHtml;
+}
