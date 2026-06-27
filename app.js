@@ -1,5 +1,5 @@
-// Estado Global
 let appState = {
+    user: null, // Usuario autenticado
     agendas: [], // Array de objetos agenda
     currentAgendaId: null,
     isTimerRunning: false,
@@ -9,10 +9,18 @@ let appState = {
 };
 
 // Pantallas
+const authScreen = document.getElementById('auth-screen');
 const agendasListScreen = document.getElementById('agendas-list-screen');
 const setupScreen = document.getElementById('setup-screen');
 const timerScreen = document.getElementById('timer-screen');
 const summaryScreen = document.getElementById('summary-screen');
+
+// Elementos - Auth
+const authForm = document.getElementById('auth-form');
+const authEmail = document.getElementById('auth-email');
+const authPassword = document.getElementById('auth-password');
+const authSubmitBtn = document.getElementById('auth-submit-btn');
+const logoutBtn = document.getElementById('logout-btn');
 
 // Elementos - Listado
 const clientsListContainer = document.getElementById('clients-list-container');
@@ -22,6 +30,10 @@ const backToClientsBtn = document.getElementById('back-to-clients-btn');
 const selectedClientTitle = document.getElementById('selected-client-title');
 const agendasList = document.getElementById('agendas-list');
 const createAgendaBtn = document.getElementById('create-agenda-btn');
+const clientAgendasView = document.getElementById('client-agendas-view');
+const clientTasksView = document.getElementById('client-tasks-view');
+const clientTasksList = document.getElementById('client-tasks-list');
+const clientTabBtns = document.querySelectorAll('.client-tab-btn');
 
 // Elementos - Setup
 const backToListBtn = document.getElementById('back-to-list-btn');
@@ -145,12 +157,61 @@ function playBeepContinuous(durationMs = 3000) {
 
 // -- ESTADO E INICIALIZACIÓN --
 
+async function migrateLegacyData() {
+    if (!appState.user) return;
+    const migrado = localStorage.getItem('migrated_to_saas_' + appState.user.id);
+    if (migrado) return;
+
+    try {
+        const { data: legacyData } = await supabaseClient
+            .from('app_state')
+            .select('data')
+            .eq('id', 1)
+            .single();
+            
+        if (legacyData && legacyData.data && legacyData.data.length > 0) {
+            syncStatus.textContent = "🟡 Migrando...";
+            const insertPromises = legacyData.data.map(agenda => {
+                return supabaseClient.from('agendas').upsert({
+                    id: agenda.id,
+                    owner_id: appState.user.id,
+                    name: agenda.name || 'Sin título',
+                    client: agenda.client || '',
+                    guest_email: null,
+                    date: agenda.date || null,
+                    total_time_minutes: agenda.totalTimeMinutes || 0,
+                    data: agenda
+                });
+            });
+            await Promise.all(insertPromises);
+        }
+        localStorage.setItem('migrated_to_saas_' + appState.user.id, 'true');
+    } catch (e) {
+        console.error("Error en migración:", e);
+    }
+}
+
 async function saveState() {
+    if (!appState.user) return;
     try {
         syncStatus.textContent = "🟡 Guardando...";
+        
+        // Determinar qué usuario es dueño para no sobrescribir permisos si somos guest
+        // Por ahora, asumimos que si la editamos, se hace un upsert
+        const upsertData = appState.agendas.map(agenda => ({
+            id: agenda.id,
+            owner_id: agenda.owner_id || appState.user.id, // Mantenemos el owner original si existe
+            name: agenda.name || 'Sin título',
+            client: agenda.client || '',
+            guest_email: agenda.guest_email || null,
+            date: agenda.date || null,
+            total_time_minutes: agenda.totalTimeMinutes || 0,
+            data: agenda
+        }));
+
         const { error } = await supabaseClient
-            .from('app_state')
-            .upsert({ id: 1, data: appState.agendas });
+            .from('agendas')
+            .upsert(upsertData);
             
         if (error) throw error;
         syncStatus.textContent = "🟢 Sincronizado";
@@ -161,37 +222,104 @@ async function saveState() {
 }
 
 async function loadState() {
+    if (!appState.user) return;
     try {
         syncStatus.textContent = "🟡 Cargando...";
         const { data, error } = await supabaseClient
-            .from('app_state')
-            .select('data')
-            .eq('id', 1)
-            .single();
+            .from('agendas')
+            .select('owner_id, guest_email, data');
             
-        if (data && data.data) {
-            appState.agendas = data.data;
+        if (error) throw error;
+        
+        if (data) {
+            appState.agendas = data.map(row => {
+                let agenda = row.data;
+                agenda.owner_id = row.owner_id;
+                agenda.guest_email = row.guest_email;
+                return agenda;
+            });
         }
         syncStatus.textContent = "🟢 Sincronizado";
     } catch (e) {
-        console.error("Error cargando desde Supabase", e);
+        console.error("Error cargando", e);
         syncStatus.textContent = "🔴 Error de Red";
     }
 }
 
 async function init() {
-    await loadState();
     setupEventListeners();
-    renderAgendasList();
+    
+    // Listener de Autenticación
+    supabaseClient.auth.onAuthStateChange(async (event, session) => {
+        if (session) {
+            appState.user = session.user;
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            agendasListScreen.classList.add('active');
+            
+            await migrateLegacyData();
+            await loadState();
+            renderAgendasList();
+        } else {
+            appState.user = null;
+            appState.agendas = [];
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            if(authScreen) authScreen.classList.add('active');
+        }
+    });
 }
 
 function setupEventListeners() {
+    // Autenticación
+    if (authForm) {
+        authForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = authEmail.value;
+            const password = authPassword.value;
+            authSubmitBtn.disabled = true;
+            authSubmitBtn.textContent = "Iniciando...";
+            
+            const { error } = await supabaseClient.auth.signInWithPassword({
+                email, password
+            });
+            
+            if (error) {
+                alert("Error de acceso: Por favor solicite una cuenta al administrador.");
+                authSubmitBtn.disabled = false;
+                authSubmitBtn.textContent = "Iniciar Sesión";
+            }
+        });
+    }
+
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', async () => {
+            await supabaseClient.auth.signOut();
+        });
+    }
+
     // Pantalla Principal
     createAgendaBtn.addEventListener('click', createNewAgenda);
     backToListBtn.addEventListener('click', () => {
         saveState();
         switchScreen(setupScreen, agendasListScreen);
         renderAgendasList();
+    });
+
+    // Tabs de Cliente
+    clientTabBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const view = e.target.getAttribute('data-view');
+            clientTabBtns.forEach(b => b.classList.remove('active'));
+            e.target.classList.add('active');
+            
+            if (view === 'meetings') {
+                clientAgendasView.style.display = 'block';
+                clientTasksView.style.display = 'none';
+            } else {
+                clientAgendasView.style.display = 'none';
+                clientTasksView.style.display = 'block';
+                renderClientTasks();
+            }
+        });
     });
 
     // Inputs de Agenda Activa
@@ -392,7 +520,13 @@ function renderClientMeetings(clientName) {
     
     selectedClientTitle.textContent = clientName;
     
-    // Filtrar y ordenar (más reciente a antigua)
+    // Reseteamos tabs al entrar
+    clientTabBtns.forEach(b => b.classList.remove('active'));
+    clientTabBtns[0].classList.add('active'); // Selecciona 'Reuniones' por defecto
+    clientAgendasView.style.display = 'block';
+    clientTasksView.style.display = 'none';
+    
+    const clientAgendas = appState.agendas.filter(a => a.client === clientName);
     let filtered = appState.agendas.filter(a => {
         const cName = a.client && a.client.trim() !== '' ? a.client.trim() : 'Sin cliente';
         return cName === clientName;
@@ -449,6 +583,120 @@ function renderClientMeetings(clientName) {
         });
         
         agendasList.appendChild(li);
+    });
+}
+
+function toggleTaskStatus(agendaId, topicId, agreementId, isCompleted) {
+    const agenda = appState.agendas.find(a => a.id === agendaId);
+    if (!agenda) return;
+    
+    const agreement = agenda.agreements.find(a => a.id === agreementId);
+    if (agreement) {
+        agreement.completed = isCompleted;
+        saveState();
+        renderClientTasks(); // Re-renderizar la vista de tareas
+    }
+}
+
+function renderClientTasks() {
+    clientTasksList.innerHTML = '';
+    const clientAgendas = appState.agendas.filter(a => a.client === appState.selectedClient);
+    
+    let allTasks = [];
+    
+    // Extraer todas las tareas de las reuniones del cliente
+    clientAgendas.forEach(agenda => {
+        if (agenda.agreements && agenda.agreements.length > 0) {
+            agenda.agreements.forEach(agr => {
+                // Buscamos a qué tema pertenece
+                const topic = agenda.topics ? agenda.topics.find(t => t.id === agr.topicId) : null;
+                allTasks.push({
+                    ...agr,
+                    agendaId: agenda.id,
+                    agendaName: agenda.name,
+                    agendaDate: agenda.date,
+                    topicName: topic ? topic.name : 'Sin tema'
+                });
+            });
+        }
+    });
+    
+    if (allTasks.length === 0) {
+        clientTasksList.innerHTML = '<li class="empty-state">No hay tareas pendientes.</li>';
+        return;
+    }
+    
+    // Ordenar por fecha límite (próximas primero), las que no tienen fecha van al final
+    allTasks.sort((a, b) => {
+        if (!a.deadline && !b.deadline) return 0;
+        if (!a.deadline) return 1;
+        if (!b.deadline) return -1;
+        return new Date(a.deadline) - new Date(b.deadline);
+    });
+    
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    
+    allTasks.forEach(task => {
+        const li = document.createElement('li');
+        li.className = 'agenda-card';
+        // Si está completada, bajamos la opacidad
+        if (task.completed) {
+            li.style.opacity = '0.6';
+        }
+        
+        // Calcular color del semáforo si hay fecha límite y no está completada
+        let statusBadge = '';
+        if (task.deadline && !task.completed) {
+            const taskDate = new Date(task.deadline + 'T12:00:00');
+            taskDate.setHours(0,0,0,0);
+            
+            if (taskDate < today) {
+                // Vencida
+                statusBadge = '<span class="badge" style="background: var(--danger-color); color: white;">🔴 Atrasada</span>';
+            } else if (taskDate.getTime() === today.getTime()) {
+                // Vence hoy
+                statusBadge = '<span class="badge" style="background: #eab308; color: black;">🟡 Vence Hoy</span>';
+            } else {
+                // A tiempo
+                statusBadge = '<span class="badge" style="background: #22c55e; color: white;">🟢 A tiempo</span>';
+            }
+        } else if (task.completed) {
+            statusBadge = '<span class="badge" style="background: rgba(255,255,255,0.1); color: var(--text-secondary);">✅ Lista</span>';
+        }
+        
+        li.innerHTML = `
+            <div style="display: flex; align-items: flex-start; gap: 1rem;">
+                <input type="checkbox" class="task-checkbox" style="margin-top: 5px; width: 20px; height: 20px; cursor: pointer;" ${task.completed ? 'checked' : ''}>
+                <div style="flex: 1;">
+                    <div class="title" style="font-size: 1.1rem; ${task.completed ? 'text-decoration: line-through; color: var(--text-secondary);' : ''}">${task.text || 'Sin descripción'}</div>
+                    <div class="details" style="margin-top: 0.5rem;">
+                        <span>👤 ${task.responsible || 'Sin responsable'}</span>
+                        <span>📅 Vence: ${task.deadline ? new Date(task.deadline + 'T12:00:00').toLocaleDateString() : 'Sin fecha'}</span>
+                        ${statusBadge}
+                    </div>
+                    <div style="margin-top: 1rem; font-size: 0.8rem; color: var(--text-secondary); border-top: 1px solid var(--glass-border); padding-top: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
+                        <span>De: <strong>${task.agendaName}</strong> (${task.topicName})</span>
+                        <button class="btn text-btn goto-agenda-btn" data-id="${task.agendaId}" style="padding: 0; font-size: 0.8rem; color: var(--accent-color);">Ir a reunión ↗</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Checkbox Listener
+        const checkbox = li.querySelector('.task-checkbox');
+        checkbox.addEventListener('change', (e) => {
+            toggleTaskStatus(task.agendaId, task.topicId, task.id, e.target.checked);
+        });
+        
+        // Ir a la agenda Listener
+        const gotoBtn = li.querySelector('.goto-agenda-btn');
+        gotoBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openAgenda(task.agendaId);
+        });
+        
+        clientTasksList.appendChild(li);
     });
 }
 
@@ -509,7 +757,7 @@ function renderFilteredList(filterType) {
         const clientStr = agenda.client || 'Sin cliente';
         
         li.innerHTML = `
-            <div class="title">${agenda.name || 'Reunión sin nombre'}</div>
+            <div class="title">${agenda.name || 'Reunión sin nombre'} ${agenda.owner_id !== appState.user?.id && agenda.owner_id ? '<span class="badge" style="background:#8b5cf6;color:white;font-size:0.7rem;padding:0.15rem 0.4rem;border-radius:12px;margin-left:0.5rem;">Invitado</span>' : ''}</div>
             <div class="details">
                 <span>📅 ${dateStr}</span>
                 <span>👤 ${clientStr}</span>
@@ -517,9 +765,9 @@ function renderFilteredList(filterType) {
             </div>
             <div class="card-actions" style="margin-top: 1rem; display: flex; gap: 0.5rem;">
                 <button class="btn primary small start-agenda-btn" data-id="${agenda.id}">Comenzar</button>
-                <button class="btn secondary small edit-agenda-btn" data-id="${agenda.id}">Editar</button>
+                <button class="btn secondary small edit-agenda-btn" data-id="${agenda.id}">Ver / Editar</button>
             </div>
-            <button class="delete-agenda-btn" title="Eliminar agenda">🗑</button>
+            ${agenda.owner_id === appState.user?.id || !agenda.owner_id ? `<button class="delete-agenda-btn" title="Eliminar agenda">🗑</button>` : ''}
         `;
         
         li.querySelector('.start-agenda-btn').addEventListener('click', (e) => {
@@ -532,14 +780,17 @@ function renderFilteredList(filterType) {
             openAgenda(agenda.id);
         });
         
-        li.querySelector('.delete-agenda-btn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            if(confirm('¿Eliminar esta agenda?')) {
-                appState.agendas = appState.agendas.filter(a => a.id !== agenda.id);
-                saveState();
-                renderAgendasList();
-            }
-        });
+        const deleteBtn = li.querySelector('.delete-agenda-btn');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if(confirm('¿Eliminar esta agenda?')) {
+                    appState.agendas = appState.agendas.filter(a => a.id !== agenda.id);
+                    saveState();
+                    renderAgendasList();
+                }
+            });
+        }
         
         agendasList.appendChild(li);
     });
@@ -568,11 +819,21 @@ function openAgenda(id) {
     const agenda = getCurrentAgenda();
     if (agenda) {
         loadAgendaIntoSetup(agenda);
-        switchScreen(agendasListScreen, setupScreen);
+    if (!agenda) return;
+    
+    meetingNameInput.value = agenda.name || '';
+    meetingClientInput.value = agenda.client || '';
+    if (document.getElementById('guest-email')) {
+        document.getElementById('guest-email').value = agenda.guest_email || '';
     }
+    meetingDateInput.value = agenda.date || '';
+    totalTimeInput.value = agenda.totalTimeMinutes || 0;
+    
+    updateSummary();
+    renderTopicsList();
+    switchScreen(agendasListScreen, setupScreen);
 }
 
-// -- LÓGICA DE SETUP DE AGENDA --
 function loadAgendaIntoSetup(agenda) {
     meetingNameInput.value = agenda.name;
     meetingClientInput.value = agenda.client;
@@ -587,8 +848,16 @@ function updateCurrentAgenda() {
     const agenda = getCurrentAgenda();
     if (!agenda) return;
     
+    // Solo permitir edición completa si somos owners
+    if (agenda.owner_id && agenda.owner_id !== appState.user?.id) {
+        // Podríamos bloquear edición de datos base aquí, pero el RLS lo protegerá de todos modos
+    }
+
     agenda.name = meetingNameInput.value;
     agenda.client = meetingClientInput.value;
+    if (document.getElementById('guest-email')) {
+        agenda.guest_email = document.getElementById('guest-email').value;
+    }
     agenda.date = meetingDateInput.value;
     agenda.totalTimeMinutes = parseInt(totalTimeInput.value) || 0;
     
@@ -748,7 +1017,7 @@ function renderAgreementsTopics() {
         header.className = 'agreement-topic-header';
         header.innerHTML = `
             <h3>${index + 1}. ${topic.name}</h3>
-            <span class="badge">${topicAgreements.length} Acuerdos</span>
+            <span style="font-size: 0.8rem; color: var(--text-secondary); font-style: italic; white-space: nowrap; margin-left: 1rem;">(clic para colocar detalle)</span>
         `;
         
         // Body (Acordeón)
