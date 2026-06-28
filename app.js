@@ -30,7 +30,6 @@ const clientMeetingsContainer = document.getElementById('client-meetings-contain
 const backToClientsBtn = document.getElementById('back-to-clients-btn');
 const selectedClientTitle = document.getElementById('selected-client-title');
 const agendasList = document.getElementById('agendas-list');
-const createClientBtn = document.getElementById('create-client-btn');
 const createAgendaBtn = document.getElementById('create-agenda-btn');
 const clientAgendasView = document.getElementById('client-agendas-view');
 const clientTasksView = document.getElementById('client-tasks-view');
@@ -299,15 +298,7 @@ function setupEventListeners() {
         });
     }
 
-    // Pantalla Principal
     createAgendaBtn.addEventListener('click', createNewAgenda);
-    createClientBtn.addEventListener('click', () => {
-        createNewAgenda();
-        // Abrir el details (acordeón) y hacer focus en el cliente
-        const clientDetails = document.querySelector('details');
-        if (clientDetails) clientDetails.open = true;
-        setTimeout(() => meetingClientInput.focus(), 100);
-    });
     backToListBtn.addEventListener('click', () => {
         saveState();
         switchScreen(setupScreen, agendasListScreen);
@@ -479,6 +470,12 @@ function updateTabsUI() {
 function renderAgendasList() {
     // Esconder Analytics global por defecto
     globalAnalyticsContainer.style.display = 'none';
+    
+    if (appState.currentView === 'meetings') {
+        createAgendaBtn.textContent = '➕ Crear Nueva Agenda';
+    } else {
+        createAgendaBtn.textContent = '➕ Crear Agenda / Proyecto';
+    }
     
     if (appState.currentView === 'clients') {
         renderClientsList();
@@ -830,10 +827,11 @@ function renderFilteredList(filterType) {
 }
 
 function createNewAgenda() {
+    const defaultClient = (appState.currentView === 'meetings' && appState.selectedClient) ? appState.selectedClient : '';
     const newAgenda = {
         id: Date.now().toString(),
         name: '',
-        client: '',
+        client: defaultClient,
         date: '',
         totalTimeMinutes: 0,
         topics: [],
@@ -845,6 +843,13 @@ function createNewAgenda() {
     saveState();
     loadAgendaIntoSetup(newAgenda);
     switchScreen(agendasListScreen, setupScreen);
+
+    // Si NO estamos en un cliente específico, abrir el panel de datos
+    const clientDetails = document.querySelector('details');
+    if (!defaultClient && clientDetails) {
+        clientDetails.open = true;
+        setTimeout(() => meetingClientInput.focus(), 100);
+    }
 }
 
 function openAgenda(id) {
