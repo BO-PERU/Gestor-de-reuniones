@@ -639,6 +639,7 @@ function renderClientMeetings(clientName) {
             </div>
             <div class="card-actions" style="margin-top: 1rem; display: flex; gap: 0.5rem;">
                 ${isDone ? '' : `<button class="btn primary small start-agenda-btn" data-id="${agenda.id}">Comenzar</button>`}
+                ${isDone ? '' : `<button class="btn secondary small expost-agenda-btn" data-id="${agenda.id}">Registro Ex-Post</button>`}
                 <button class="btn secondary small edit-agenda-btn" data-id="${agenda.id}">${isDone ? 'Ver Acta/Agenda' : 'Editar'}</button>
             </div>
             <button class="delete-agenda-btn" title="Eliminar agenda">🗑</button>
@@ -649,6 +650,15 @@ function renderClientMeetings(clientName) {
             startBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 startMeeting(agenda.id);
+            });
+        }
+
+        const exPostBtn = li.querySelector('.expost-agenda-btn');
+        if (exPostBtn) {
+            exPostBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                appState.currentAgendaId = agenda.id;
+                openAgreementsScreen();
             });
         }
         
@@ -864,6 +874,7 @@ function renderFilteredList(filterType) {
             </div>
             <div class="card-actions" style="margin-top: 1rem; display: flex; gap: 0.5rem;">
                 ${isDone ? '' : `<button class="btn primary small start-agenda-btn" data-id="${agenda.id}">Comenzar</button>`}
+                ${isDone ? '' : `<button class="btn secondary small expost-agenda-btn" data-id="${agenda.id}">Registro Ex-Post</button>`}
                 <button class="btn secondary small edit-agenda-btn" data-id="${agenda.id}">${isDone ? 'Ver Acta/Agenda' : 'Editar'}</button>
             </div>
             ${agenda.owner_id === appState.user?.id || !agenda.owner_id ? `<button class="delete-agenda-btn" title="Eliminar agenda">🗑</button>` : ''}
@@ -874,6 +885,15 @@ function renderFilteredList(filterType) {
             startBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 startMeeting(agenda.id);
+            });
+        }
+
+        const exPostBtn = li.querySelector('.expost-agenda-btn');
+        if (exPostBtn) {
+            exPostBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                appState.currentAgendaId = agenda.id;
+                openAgreementsScreen();
             });
         }
         
@@ -1286,6 +1306,12 @@ async function generatePDF() {
         document.getElementById('pdf-planned-time').textContent = formatTime(totalAllocated);
         document.getElementById('pdf-actual-time').textContent = formatTime(totalElapsed);
         
+        if (totalElapsed === 0) {
+            document.getElementById('pdf-actual-time-container').style.display = 'none';
+        } else {
+            document.getElementById('pdf-actual-time-container').style.display = 'block';
+        }
+        
         // Llenar Temas y Acuerdos
         const pdfTopicsList = document.getElementById('pdf-topics-list');
         pdfTopicsList.innerHTML = '';
@@ -1295,9 +1321,10 @@ async function generatePDF() {
             topicDiv.style.marginBottom = '25px';
             
             const elapsedMins = Math.round(topic.elapsedSeconds / 60);
+            const timeLabel = totalElapsed > 0 ? `<span style="font-size: 12px; font-weight: normal; color: #64748b; margin-left: 10px;">(Tiempo invertido: ${elapsedMins}m)</span>` : '';
             topicDiv.innerHTML = `
                 <h3 style="font-size: 16px; color: #1e293b; margin: 0 0 10px 0; background: #f1f5f9; padding: 8px; border-left: 4px solid #3b82f6;">
-                    ${index + 1}. ${topic.name} <span style="font-size: 12px; font-weight: normal; color: #64748b; margin-left: 10px;">(Tiempo invertido: ${elapsedMins}m)</span>
+                    ${index + 1}. ${topic.name} ${timeLabel}
                 </h3>
             `;
             
