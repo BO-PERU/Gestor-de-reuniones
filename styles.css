@@ -667,3 +667,88 @@ input:focus {
     border-bottom-color: transparent;
     background: rgba(59, 130, 246, 0.15); /* Subtle highlight when active */
 }
+
+/* Calendar Grid */
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0.5rem;
+}
+.calendar-day-header {
+    text-align: center;
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    padding-bottom: 0.5rem;
+}
+.calendar-day {
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    min-height: 80px;
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+.calendar-day.empty {
+    background: transparent;
+    border-color: transparent;
+}
+.calendar-day .day-number {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    align-self: flex-end;
+}
+.calendar-day.today {
+    border-color: var(--accent-color);
+    background: rgba(59, 130, 246, 0.1);
+}
+.calendar-day.today .day-number {
+    color: var(--accent-color);
+    font-weight: 700;
+}
+.calendar-event {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    background: rgba(59, 130, 246, 0.2);
+    color: #93c5fd;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+}
+.calendar-event.done {
+    background: rgba(16, 185, 129, 0.2);
+    color: #6ee7b7;
+    border-color: rgba(16, 185, 129, 0.3);
+}
+
+/* Read-Only Mode */
+.read-only-mode input,
+.read-only-mode textarea {
+    border: 1px solid transparent !important;
+    background: transparent !important;
+    color: var(--text-primary) !important;
+    pointer-events: none;
+}
+.read-only-mode input[type="date"]::-webkit-calendar-picker-indicator {
+    display: none;
+}
+.read-only-mode button#add-topic-btn,
+.read-only-mode button#save-agenda-btn,
+.read-only-mode button#finalize-agreements-btn,
+.read-only-mode .topic-form {
+    display: none !important;
+}
+.read-only-mode .delete-topic-btn {
+    display: none !important;
+}
+.read-only-mode .inline-time-input {
+    border: 1px solid transparent !important;
+    background: transparent !important;
+    pointer-events: none;
+}

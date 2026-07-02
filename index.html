@@ -57,6 +57,7 @@
                 <button class="tab-btn" data-view="last7">Últimos 7 días</button>
                 <button class="tab-btn" data-view="todo">Por Realizar</button>
                 <button class="tab-btn" data-view="done">Realizadas</button>
+                <button class="tab-btn" data-view="calendar">📅 Calendario</button>
                 <button class="tab-btn" data-view="global-analytics" style="color: #a78bfa;">📊 Mi Dashboard Global</button>
             </div>
             
@@ -74,6 +75,18 @@
                     <div id="global-chart-container" class="glass-card" style="margin-bottom: 1.5rem; text-align: center;"></div>
                     <h3 style="margin-bottom: 1rem; font-size: 1.1rem; color: var(--accent-color);">Carga por Responsable</h3>
                     <div id="global-responsible-table"></div>
+                </div>
+
+                <!-- Calendario -->
+                <div id="calendar-container" style="display: none;">
+                    <div id="calendar-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <button id="cal-prev-btn" class="btn secondary small">&lt;</button>
+                        <h3 id="cal-month-year" style="margin: 0; color: var(--accent-color);">Mes Año</h3>
+                        <button id="cal-next-btn" class="btn secondary small">&gt;</button>
+                    </div>
+                    <div id="calendar-grid" class="calendar-grid">
+                        <!-- Generado en JS -->
+                    </div>
                 </div>
                 
                 <!-- Vista de Reuniones del Cliente -->
@@ -271,6 +284,18 @@
                 <!-- Se llenará dinámicamente con los temas y acordeones -->
             </div>
             
+            <div class="glass-card" style="margin-top: 1.5rem; padding: 1.5rem;">
+                <h3 style="margin-bottom: 1rem; color: var(--accent-color);">Soporte General de la Reunión</h3>
+                <div class="input-group" style="margin-bottom: 1rem;">
+                    <label for="meeting-link">Enlace de la Grabación / Videollamada (opcional)</label>
+                    <input type="url" id="meeting-link" placeholder="https://zoom.us/j/... o https://meet.google.com/..." autocomplete="off">
+                </div>
+                <div class="input-group">
+                    <label for="meeting-summary">Resumen General (opcional)</label>
+                    <textarea id="meeting-summary" rows="3" placeholder="Ej. La reunión fluyó de acuerdo a lo esperado..." style="width: 100%; resize: vertical; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: white; border-radius: 8px; padding: 0.8rem; font-family: inherit; font-size: 0.95rem; box-sizing: border-box;"></textarea>
+                </div>
+            </div>
+            
             <button id="finalize-agreements-btn" class="btn primary full-width" style="margin-top: 1rem;">Finalizar Acuerdos y Generar Acta PDF</button>
         </section>
     </div>
@@ -296,6 +321,15 @@
         <h2 style="font-size: 18px; color: #3b82f6; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">2. AGENDA TRATADA Y ACUERDOS</h2>
         <div id="pdf-topics-list">
             <!-- Los temas y acuerdos se inyectarán aquí -->
+        </div>
+
+        <div id="pdf-general-support-section" style="display: none;">
+            <h2 style="font-size: 18px; color: #3b82f6; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; margin-top: 30px;">3. SOPORTE GENERAL</h2>
+            <div style="background: #f8fafc; padding: 15px; border-radius: 8px;">
+                <p id="pdf-meeting-link-container" style="margin: 0 0 10px 0;"><strong>Enlace:</strong> <a id="pdf-meeting-link" href="#" target="_blank" style="color: #3b82f6; word-break: break-all;"></a></p>
+                <p style="margin: 0;"><strong>Resumen General:</strong></p>
+                <p id="pdf-meeting-summary" style="margin: 5px 0 0 0; white-space: pre-wrap; font-size: 14px;"></p>
+            </div>
         </div>
         
         <div style="margin-top: 50px; text-align: center; color: #94a3b8; font-size: 12px; border-top: 1px solid #e2e8f0; padding-top: 20px;">

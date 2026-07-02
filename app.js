@@ -82,6 +82,19 @@ const agreementsScreen = document.getElementById('agreements-screen');
 const agreementsTopicsContainer = document.getElementById('agreements-topics-container');
 const finalizeAgreementsBtn = document.getElementById('finalize-agreements-btn');
 
+// Elementos - Soporte General de Reunión
+const meetingLinkInput = document.getElementById('meeting-link');
+const meetingSummaryInput = document.getElementById('meeting-summary');
+
+// Elementos - Calendario
+const calendarContainer = document.getElementById('calendar-container');
+const calendarHeader = document.getElementById('cal-month-year');
+const calendarGrid = document.getElementById('calendar-grid');
+const calPrevBtn = document.getElementById('cal-prev-btn');
+const calNextBtn = document.getElementById('cal-next-btn');
+
+let currentCalendarDate = new Date(); // Para el mes mostrado en el calendario
+
 // Elementos - Backup
 const backupDownloadBtn = document.getElementById('backup-download-btn');
 const backupUploadBtn = document.getElementById('backup-upload-btn');
@@ -402,6 +415,14 @@ function setupEventListeners() {
     const openAgreementsScreen = () => {
         const agenda = getCurrentAgenda();
         if (agenda) {
+            // Cargar datos extra si existen
+            meetingLinkInput.value = agenda.meetingLink || '';
+            meetingSummaryInput.value = agenda.meetingSummary || '';
+
+            // Verificar si debe ser de solo lectura
+            const isDone = agenda.agreements && agenda.agreements.length > 0;
+            setReadOnlyMode(agreementsScreen, isDone);
+
             // Si estamos en summaryScreen, la ocultamos
             if (summaryScreen.classList.contains('active')) {
                 switchScreen(summaryScreen, agreementsScreen);
@@ -416,6 +437,20 @@ function setupEventListeners() {
             renderAgreementsTopics();
         }
     };
+
+    meetingLinkInput.addEventListener('input', (e) => {
+        const agenda = getCurrentAgenda();
+        if (agenda) {
+            agenda.meetingLink = e.target.value;
+        }
+    });
+
+    meetingSummaryInput.addEventListener('input', (e) => {
+        const agenda = getCurrentAgenda();
+        if (agenda) {
+            agenda.meetingSummary = e.target.value;
+        }
+    });
     setupAgreementsBtn.addEventListener('click', openAgreementsScreen);
     summaryAgreementsBtn.addEventListener('click', openAgreementsScreen);
     
@@ -445,6 +480,16 @@ function setupEventListeners() {
             e.returnValue = '';
         }
     });
+
+    calPrevBtn.addEventListener('click', () => {
+        currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
+        renderCalendarView();
+    });
+
+    calNextBtn.addEventListener('click', () => {
+        currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
+        renderCalendarView();
+    });
 }
 
 function getCurrentAgenda() {
@@ -470,6 +515,7 @@ function updateTabsUI() {
 function renderAgendasList() {
     // Esconder Analytics global por defecto
     globalAnalyticsContainer.style.display = 'none';
+    if (calendarContainer) calendarContainer.style.display = 'none';
     
     if (appState.currentView === 'meetings') {
         createAgendaBtn.textContent = '➕ Crear Nueva Agenda';
@@ -486,6 +532,11 @@ function renderAgendasList() {
         clientMeetingsContainer.style.display = 'none';
         globalAnalyticsContainer.style.display = 'block';
         renderGlobalAnalytics();
+    } else if (appState.currentView === 'calendar') {
+        clientsListContainer.style.display = 'none';
+        clientMeetingsContainer.style.display = 'none';
+        calendarContainer.style.display = 'block';
+        renderCalendarView();
     } else {
         renderFilteredList(appState.currentView);
     }
@@ -572,24 +623,34 @@ function renderClientMeetings(clientName) {
         li.className = 'agenda-card';
         
         const dateStr = agenda.date ? new Date(agenda.date + 'T12:00:00').toLocaleDateString() : 'Sin fecha';
+        const isDone = agenda.agreements && agenda.agreements.length > 0;
+        const statusBadge = isDone 
+            ? '<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px;">✓ Realizada</span>'
+            : '<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.3); font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px;">Pendiente</span>';
         
         li.innerHTML = `
-            <div class="title">${agenda.name || 'Reunión sin nombre'}</div>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div class="title">${agenda.name || 'Reunión sin nombre'}</div>
+                ${statusBadge}
+            </div>
             <div class="details">
                 <span>📅 ${dateStr}</span>
                 <span>⏱ ${agenda.totalTimeMinutes}m</span>
             </div>
             <div class="card-actions" style="margin-top: 1rem; display: flex; gap: 0.5rem;">
-                <button class="btn primary small start-agenda-btn" data-id="${agenda.id}">Comenzar</button>
-                <button class="btn secondary small edit-agenda-btn" data-id="${agenda.id}">Editar</button>
+                ${isDone ? '' : `<button class="btn primary small start-agenda-btn" data-id="${agenda.id}">Comenzar</button>`}
+                <button class="btn secondary small edit-agenda-btn" data-id="${agenda.id}">${isDone ? 'Ver Acta/Agenda' : 'Editar'}</button>
             </div>
             <button class="delete-agenda-btn" title="Eliminar agenda">🗑</button>
         `;
         
-        li.querySelector('.start-agenda-btn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            startMeeting(agenda.id);
-        });
+        const startBtn = li.querySelector('.start-agenda-btn');
+        if (startBtn) {
+            startBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                startMeeting(agenda.id);
+            });
+        }
         
         li.querySelector('.edit-agenda-btn').addEventListener('click', (e) => {
             e.stopPropagation();
@@ -786,24 +847,35 @@ function renderFilteredList(filterType) {
         const dateStr = agenda.date ? new Date(agenda.date + 'T12:00:00').toLocaleDateString() : 'Sin fecha';
         const clientStr = agenda.client || 'Sin cliente';
         
+        const isDone = agenda.agreements && agenda.agreements.length > 0;
+        const statusBadge = isDone 
+            ? '<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px;">✓ Realizada</span>'
+            : '<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.3); font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px;">Pendiente</span>';
+        
         li.innerHTML = `
-            <div class="title">${agenda.name || 'Reunión sin nombre'} ${agenda.owner_id !== appState.user?.id && agenda.owner_id ? '<span class="badge" style="background:#8b5cf6;color:white;font-size:0.7rem;padding:0.15rem 0.4rem;border-radius:12px;margin-left:0.5rem;">Invitado</span>' : ''}</div>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div class="title">${agenda.name || 'Reunión sin nombre'} ${agenda.owner_id !== appState.user?.id && agenda.owner_id ? '<span class="badge" style="background:#8b5cf6;color:white;font-size:0.7rem;padding:0.15rem 0.4rem;border-radius:12px;margin-left:0.5rem;">Invitado</span>' : ''}</div>
+                ${statusBadge}
+            </div>
             <div class="details">
                 <span>📅 ${dateStr}</span>
                 <span>👤 ${clientStr}</span>
                 <span>⏱ ${agenda.totalTimeMinutes}m</span>
             </div>
             <div class="card-actions" style="margin-top: 1rem; display: flex; gap: 0.5rem;">
-                <button class="btn primary small start-agenda-btn" data-id="${agenda.id}">Comenzar</button>
-                <button class="btn secondary small edit-agenda-btn" data-id="${agenda.id}">Ver / Editar</button>
+                ${isDone ? '' : `<button class="btn primary small start-agenda-btn" data-id="${agenda.id}">Comenzar</button>`}
+                <button class="btn secondary small edit-agenda-btn" data-id="${agenda.id}">${isDone ? 'Ver Acta/Agenda' : 'Editar'}</button>
             </div>
             ${agenda.owner_id === appState.user?.id || !agenda.owner_id ? `<button class="delete-agenda-btn" title="Eliminar agenda">🗑</button>` : ''}
         `;
         
-        li.querySelector('.start-agenda-btn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            startMeeting(agenda.id);
-        });
+        const startBtn = li.querySelector('.start-agenda-btn');
+        if (startBtn) {
+            startBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                startMeeting(agenda.id);
+            });
+        }
         
         li.querySelector('.edit-agenda-btn').addEventListener('click', (e) => {
             e.stopPropagation();
@@ -843,12 +915,21 @@ function createNewAgenda() {
     saveState();
     loadAgendaIntoSetup(newAgenda);
     switchScreen(agendasListScreen, setupScreen);
+    setReadOnlyMode(setupScreen, false); // Nueva agenda no es read-only
 
     // Si NO estamos en un cliente específico, abrir el panel de datos
     const clientDetails = document.querySelector('details');
     if (!defaultClient && clientDetails) {
         clientDetails.open = true;
         setTimeout(() => meetingClientInput.focus(), 100);
+    }
+}
+
+function setReadOnlyMode(container, isReadOnly) {
+    if (isReadOnly) {
+        container.classList.add('read-only-mode');
+    } else {
+        container.classList.remove('read-only-mode');
     }
 }
 
@@ -864,6 +945,10 @@ function openAgenda(id) {
     }
     meetingDateInput.value = agenda.date || '';
     totalTimeInput.value = agenda.totalTimeMinutes || 0;
+    
+    // Si la agenda tiene acuerdos, asumimos que ya finalizó y la ponemos en read-only
+    const isDone = agenda.agreements && agenda.agreements.length > 0;
+    setReadOnlyMode(setupScreen, isDone);
     
     updateSummary();
     renderTopicsList();
@@ -1251,6 +1336,31 @@ async function generatePDF() {
             pdfTopicsList.appendChild(topicDiv);
         });
 
+        const generalSupportSection = document.getElementById('pdf-general-support-section');
+        if (agenda.meetingLink || agenda.meetingSummary) {
+            generalSupportSection.style.display = 'block';
+            
+            const linkEl = document.getElementById('pdf-meeting-link');
+            const linkContainer = document.getElementById('pdf-meeting-link-container');
+            if (agenda.meetingLink) {
+                linkContainer.style.display = 'block';
+                linkEl.href = agenda.meetingLink;
+                linkEl.textContent = agenda.meetingLink;
+            } else {
+                linkContainer.style.display = 'none';
+            }
+            
+            const summaryEl = document.getElementById('pdf-meeting-summary');
+            if (agenda.meetingSummary) {
+                summaryEl.style.display = 'block';
+                summaryEl.textContent = agenda.meetingSummary;
+            } else {
+                summaryEl.style.display = 'none';
+            }
+        } else {
+            generalSupportSection.style.display = 'none';
+        }
+
         const element = document.getElementById('pdf-template-container');
         // Para forzar el inicio al tope, posicionamos el elemento de forma absoluta
         element.style.display = 'block';
@@ -1551,4 +1661,66 @@ function generateAnalyticsHTML(tasks, prefix) {
     if (Object.keys(responsibleStats).length === 0) tableHtml = '<p class="empty-state">No hay responsables asignados.</p>';
 
     document.getElementById(`${prefix}-responsible-table`).innerHTML = tableHtml;
+}
+
+// -- CALENDARIO --
+function renderCalendarView() {
+    if (!calendarGrid) return;
+    
+    const year = currentCalendarDate.getFullYear();
+    const month = currentCalendarDate.getMonth();
+    
+    const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+    calendarHeader.textContent = `${monthNames[month]} ${year}`;
+    
+    // Calcular días
+    const firstDay = new Date(year, month, 1).getDay(); // 0 (Dom) a 6 (Sab)
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    
+    // Lunes primero (ajuste)
+    const startDay = firstDay === 0 ? 6 : firstDay - 1; 
+    
+    let html = '';
+    const dayNames = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+    dayNames.forEach(d => {
+        html += `<div class="calendar-day-header">${d}</div>`;
+    });
+    
+    // Celdas vacías iniciales
+    for (let i = 0; i < startDay; i++) {
+        html += `<div class="calendar-day empty"></div>`;
+    }
+    
+    const today = new Date();
+    
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+        
+        let dayHtml = `<div class="calendar-day ${isToday ? 'today' : ''}">
+            <div class="day-number">${day}</div>`;
+            
+        // Buscar agendas para este día
+        const dayAgendas = appState.agendas.filter(a => a.date === dateStr);
+        dayAgendas.forEach(a => {
+            const isDone = a.agreements && a.agreements.length > 0;
+            dayHtml += `<div class="calendar-event ${isDone ? 'done' : ''}" data-id="${a.id}" title="${a.name}">
+                ${isDone ? '✓ ' : ''}${a.name || 'Reunión'}
+            </div>`;
+        });
+        
+        dayHtml += `</div>`;
+        html += dayHtml;
+    }
+    
+    calendarGrid.innerHTML = html;
+    
+    // Agregar listeners a los eventos del calendario
+    calendarGrid.querySelectorAll('.calendar-event').forEach(el => {
+        el.addEventListener('click', (e) => {
+            e.stopPropagation(); // Evitar que burbujee
+            const agendaId = e.target.getAttribute('data-id');
+            openAgenda(agendaId); // Abrirá en modo read-only si ya finalizó
+        });
+    });
 }
