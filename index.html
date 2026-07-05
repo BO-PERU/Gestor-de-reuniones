@@ -4,25 +4,147 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestor de Tiempo de Reuniones</title>
-    <link rel="stylesheet" href="styles.css?v=2">
+    <link rel="stylesheet" href="styles.css?v=5">
+    <link rel="stylesheet" href="styles_tabs.css?v=2">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="apple-touch-icon" href="icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Reuniones">
 </head>
 <body>
     <div class="app-container">
+        <!-- Pantalla de Login / Autenticación -->
+        <section id="auth-screen" class="screen active" style="justify-content: center; min-height: 80vh;">
+            <div style="text-align: center; margin-bottom: 2rem;">
+                <h1 style="font-size: 2rem; color: var(--accent-color); margin: 0 0 0.5rem 0;">Gestor Pro</h1>
+                <p style="color: var(--text-secondary); margin: 0;">Inicia sesión para gestionar tus reuniones</p>
+            </div>
+            
+            <form id="auth-form" style="display: flex; flex-direction: column; gap: 1rem;">
+                <div class="input-group">
+                    <label>Correo Electrónico</label>
+                    <input type="email" id="auth-email" required placeholder="tu@empresa.com">
+                </div>
+                <div class="input-group">
+                    <label>Contraseña</label>
+                    <input type="password" id="auth-password" required placeholder="••••••••">
+                </div>
+                <button type="submit" id="auth-submit-btn" class="btn primary full-width">Iniciar Sesión</button>
+            </form>
+            
+            <p style="text-align: center; margin-top: 1.5rem; color: var(--text-secondary); font-size: 0.9rem;">
+                Software exclusivo B2B. Contacte al administrador para solicitar acceso.
+            </p>
+        </section>
+
         <!-- Pantalla de Listado de Agendas -->
-        <section id="agendas-list-screen" class="screen active">
+        <section id="agendas-list-screen" class="screen">
             <header>
-                <h1>Mis Agendas</h1>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h1 style="margin: 0;">Mis Agendas</h1>
+                    <div>
+                        <span id="sync-status" style="font-size: 0.8rem; color: var(--text-secondary); margin-right: 10px;">🟢 Sincronizado</span>
+                        <button id="logout-btn" class="btn text-btn" style="padding: 0;">Salir</button>
+                    </div>
+                </div>
                 <p>Selecciona una reunión o crea una nueva.</p>
             </header>
             
-            <div class="agendas-container">
-                <ul id="agendas-list" class="agendas-list">
-                    <li class="empty-state">No tienes agendas guardadas.</li>
-                </ul>
+            <!-- Barra de Pestañas (Filtros) -->
+            <div class="tabs-container" style="display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.5rem; margin-bottom: 1rem; border-bottom: 1px solid var(--glass-border);">
+                <button class="tab-btn active" data-view="clients">Por Cliente</button>
+                <button class="tab-btn" data-view="last7">Últimos 7 días</button>
+                <button class="tab-btn" data-view="todo">Por Realizar</button>
+                <button class="tab-btn" data-view="done">Realizadas</button>
+                <button class="tab-btn" data-view="calendar">📅 Calendario</button>
+                <button class="tab-btn" data-view="master-tasks" style="color: #38bdf8;">📋 Tablero Tareas</button>
+                <button class="tab-btn" data-view="global-analytics" style="color: #a78bfa;">📊 Mi Dashboard</button>
             </div>
             
-            <button id="create-agenda-btn" class="btn primary full-width">Crear Nueva Agenda</button>
+            <div class="agendas-container">
+                <!-- Vista de Clientes -->
+                <div id="clients-list-container">
+                    <ul id="clients-list" class="agendas-list">
+                        <li class="empty-state">Cargando clientes...</li>
+                    </ul>
+                </div>
+
+                <!-- Dashboard Global de Analíticas -->
+                <div id="global-analytics-container" style="display: none;">
+                    <div id="global-kpi-cards" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;"></div>
+                    <div id="global-chart-container" class="glass-card" style="margin-bottom: 1.5rem; text-align: center;"></div>
+                    <h3 style="margin-bottom: 1rem; font-size: 1.1rem; color: var(--accent-color);">Carga por Responsable</h3>
+                    <div id="global-responsible-table"></div>
+                </div>
+
+                <!-- Calendario -->
+                <div id="calendar-container" style="display: none;">
+                    <div id="calendar-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <button id="cal-prev-btn" class="btn secondary small">&lt;</button>
+                        <h3 id="cal-month-year" style="margin: 0; color: var(--accent-color);">Mes Año</h3>
+                        <button id="cal-next-btn" class="btn secondary small">&gt;</button>
+                    </div>
+                    <div id="calendar-grid" class="calendar-grid">
+                        <!-- Generado en JS -->
+                    </div>
+                </div>
+                <!-- Tablero Maestro de Tareas -->
+                <div id="master-tasks-container" style="display: none;">
+                    <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                        <input type="text" id="mt-filter-client" placeholder="Filtrar Cliente..." style="flex: 1; padding: 0.5rem; border-radius: 8px; border: 1px solid var(--glass-border); background: rgba(0,0,0,0.2); color: white;">
+                        <input type="text" id="mt-filter-resp" placeholder="Filtrar Responsable..." style="flex: 1; padding: 0.5rem; border-radius: 8px; border: 1px solid var(--glass-border); background: rgba(0,0,0,0.2); color: white;">
+                    </div>
+                    <div id="master-tasks-list" style="display: flex; flex-direction: column; gap: 0.8rem;">
+                        <!-- JS generará las tarjetas aquí -->
+                    </div>
+                </div>
+                
+                <!-- Vista de Reuniones del Cliente -->
+                <!-- Vista de Reuniones del Cliente -->
+                <div id="client-meetings-container" style="display: none;">
+                    <button id="back-to-clients-btn" class="btn text-btn" style="margin-bottom: 0.5rem; padding-left: 0;">← Volver</button>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 1rem;">
+                        <h3 id="selected-client-title" style="margin: 0; color: var(--accent-color);">Cliente</h3>
+                    </div>
+
+                    <!-- Client Sub-Tabs -->
+                    <div class="tabs-container" style="margin-bottom: 1rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 0;">
+                        <button class="client-tab-btn active" data-view="meetings">📅 Reuniones</button>
+                        <button class="client-tab-btn" data-view="tasks">📝 Tareas</button>
+                        <button class="client-tab-btn" data-view="analytics">📊 Analíticas</button>
+                    </div>
+
+                    <div id="client-agendas-view">
+                        <ul id="agendas-list" class="agendas-list">
+                            <li class="empty-state">No hay reuniones.</li>
+                        </ul>
+                    </div>
+
+                    <div id="client-tasks-view" style="display: none;">
+                        <ul id="client-tasks-list" class="agendas-list">
+                            <li class="empty-state">No hay tareas pendientes.</li>
+                        </ul>
+                    </div>
+
+                    <div id="client-analytics-view" style="display: none;">
+                        <div id="client-kpi-cards" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;"></div>
+                        <div id="client-chart-container" class="glass-card" style="margin-bottom: 1.5rem; text-align: center;"></div>
+                        <h3 style="margin-bottom: 1rem; font-size: 1.1rem; color: var(--accent-color);">Rendimiento del Equipo</h3>
+                        <div id="client-responsible-table"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                <button id="create-agenda-btn" class="btn primary full-width" style="background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">➕ Crear Agenda / Cliente</button>
+            </div>
+            <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                <button id="backup-download-btn" class="btn secondary full-width small">💾 Respaldar</button>
+                <button id="backup-upload-btn" class="btn secondary full-width small">📂 Restaurar</button>
+                <input type="file" id="backup-file-input" accept=".json" style="display: none;">
+            </div>
         </section>
 
         <!-- Pantalla de Configuración -->
@@ -35,6 +157,19 @@
                 </div>
                 <p>Detalla la reunión y distribuye el tiempo.</p>
             </header>
+
+            <div id="status-container" class="glass-card" style="margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #3b82f6;">
+                <div>
+                    <span style="font-size: 0.85rem; color: #94a3b8; text-transform: uppercase;">Estado</span>
+                    <div id="agenda-status-badge" style="font-weight: bold; color: white; text-transform: capitalize;">Agendada</div>
+                </div>
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end;">
+                    <button id="pre-pdf-btn" class="btn secondary small" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">📄 PDF Convocatoria</button>
+                    <button id="reschedule-btn" class="btn secondary small" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">📅 Reagendar</button>
+                    <button id="mark-not-held-btn" class="btn secondary small" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; background: #ef4444; border: none; color: white;">❌ No Realizada</button>
+                    <button id="mark-completed-btn" class="btn primary small" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; background: #10b981; border: none;">✓ Realizada</button>
+                </div>
+            </div>
             
             <div class="glass-card main-config">
                 <div class="input-group">
@@ -42,22 +177,48 @@
                     <input type="text" id="meeting-name" placeholder="Ej. Sync Semanal" autocomplete="off">
                 </div>
                 
-                <div class="input-row">
-                    <div class="input-group">
-                        <label for="meeting-client">Cliente / Proyecto</label>
-                        <input type="text" id="meeting-client" placeholder="Ej. Acme Corp" autocomplete="off">
-                    </div>
+                <div class="input-row" style="margin-bottom: 1.5rem;">
                     <div class="input-group">
                         <label for="meeting-date">Fecha</label>
                         <input type="date" id="meeting-date">
                     </div>
-                </div>
-
-                <div class="input-group">
-                    <label for="total-time">Tiempo Total (minutos)</label>
-                    <input type="number" id="total-time" placeholder="Ej. 60" min="1">
+                    <div class="input-group">
+                        <label for="meeting-time">Hora</label>
+                        <input type="time" id="meeting-time">
+                    </div>
+                    <div class="input-group">
+                        <label for="total-time">Minutos</label>
+                        <input type="number" id="total-time" placeholder="Ej. 60" min="1">
+                    </div>
                 </div>
                 
+                <div class="input-row" style="margin-bottom: 1.5rem;">
+                    <div class="input-group">
+                        <label for="meeting-location">Lugar / Enlace de Reunión</label>
+                        <input type="text" id="meeting-location" placeholder="Ej. Sala 1 o https://meet.google.com/..." autocomplete="off">
+                    </div>
+                </div>
+
+                <div class="input-group" style="margin-bottom: 1.5rem;">
+                    <label for="meeting-attendees">Asistentes</label>
+                    <textarea id="meeting-attendees" placeholder="Juan Pérez, Ana Gómez" rows="2" style="width:100%; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.2); color:white; padding:0.5rem;"></textarea>
+                </div>
+
+                <details style="margin-bottom: 1rem; color: var(--text-secondary); border: 1px solid var(--glass-border); padding: 0.8rem; border-radius: 8px; background: rgba(255,255,255,0.02);">
+                    <summary style="font-size: 0.95rem; cursor: pointer; outline: none; font-weight: 500;">Datos Adicionales del Cliente (Opcional)</summary>
+                    <div class="input-row" style="margin-top: 1rem;">
+                        <div class="input-group">
+                            <label for="meeting-client">Cliente / Proyecto</label>
+                            <input type="text" id="meeting-client" placeholder="Ej. Acme Corp" autocomplete="off">
+                        </div>
+                        <div class="input-group">
+                            <label for="guest-email">Email del Cliente (opcional)</label>
+                            <input type="email" id="guest-email" placeholder="cliente@empresa.com" autocomplete="off">
+                        </div>
+                    </div>
+                </details>
+                
+
                 <div class="time-summary">
                     <div class="summary-item">
                         <span class="label">Total:</span>
@@ -96,7 +257,14 @@
                 </ul>
             </div>
 
-            <button id="save-agenda-btn" class="btn primary full-width">Guardar Agenda</button>
+            <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                <button id="setup-agreements-btn" class="btn secondary full-width" style="display: none;">📝 Ver Acuerdos</button>
+                <button id="save-agenda-btn" class="btn primary full-width">Guardar Agenda</button>
+            </div>
+            
+            <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                <button id="start-btn" class="btn start-btn full-width" style="margin:0;">▶ Iniciar Gestor de Tiempos</button>
+            </div>
         </section>
 
         <!-- Pantalla de Temporizador -->
@@ -112,9 +280,10 @@
                 <div class="topic-indicator">Tema Actual</div>
                 <h3 id="current-topic-name">Nombre del Tema</h3>
                 <div id="main-timer" class="time-huge">00:00</div>
-                <div class="timer-details">
+                <div id="total-time-left" style="font-size: 0.9rem; margin-top: 0.5rem; font-weight: 500; color: var(--accent-color); text-align: center;">Total Restante: 00:00</div>
+                <div class="timer-details" style="margin-top: 1rem;">
                     <span>Transcurrido: <span id="elapsed-time">00:00</span></span>
-                    <span class="badge" id="topic-duration-badge">0m asignados</span>
+                    <span class="badge" id="topic-duration-badge" style="max-width: 100%; white-space: normal; text-align: center; line-height: 1.4;">0m asignados</span>
                 </div>
             </div>
 
@@ -140,10 +309,123 @@
                 <h3>Resumen</h3>
                 <ul id="summary-list" class="summary-list"></ul>
             </div>
-            <button id="new-meeting-btn" class="btn primary full-width" style="margin-top: 1rem;">Volver al Listado</button>
+            <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                <button id="summary-agreements-btn" class="btn primary full-width">📝 Redactar Acuerdos</button>
+                <button id="new-meeting-btn" class="btn secondary full-width">Volver al Listado</button>
+            </div>
         </section>
-    </div>
+        
+        <!-- El Modal de Sync Manual fue eliminado -->
 
-    <script src="app.js?v=2"></script>
+        <!-- Pantalla Interactiva de Acuerdos por Tema -->
+        <section id="agreements-screen" class="screen">
+            <header>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <button id="back-from-agreements-btn" class="btn text-btn" style="padding: 0.4rem 0.8rem; font-size: 0.9rem;">← Volver</button>
+                    <h2 style="margin: 0; font-size: 1.3rem;">Acuerdos de Reunión</h2>
+                    <button id="top-generate-pdf-btn" class="btn primary small" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">📄 PDF</button>
+                </div>
+                <p>Haga clic en el tema vinculado al acuerdo para registrar los detalles.</p>
+            </header>
+            
+            <div id="agreements-topics-container" class="agreements-topics-container">
+                <!-- Se llenará dinámicamente con los temas y acordeones -->
+            </div>
+            
+            <div class="glass-card" style="margin-top: 1.5rem; padding: 1.5rem;">
+                <h3 style="margin-bottom: 1rem; color: var(--accent-color);">Soporte General de la Reunión</h3>
+                <div class="input-group" style="margin-bottom: 1rem;">
+                    <label for="meeting-link">Enlace de la Grabación / Videollamada (opcional)</label>
+                    <input type="url" id="meeting-link" placeholder="https://zoom.us/j/... o https://meet.google.com/..." autocomplete="off">
+                </div>
+                <div class="input-group">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 0.5rem;">
+                        <label for="meeting-summary" style="margin-bottom: 0;">Resumen General (opcional)</label>
+                        <button id="auto-summary-btn" class="btn secondary small" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">🪄 Autocompletar desde Temas</button>
+                    </div>
+                    <textarea id="meeting-summary" rows="3" placeholder="Ej. La reunión fluyó de acuerdo a lo esperado..." style="width: 100%; resize: vertical; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: white; border-radius: 8px; padding: 0.8rem; font-family: inherit; font-size: 0.95rem; box-sizing: border-box;"></textarea>
+                </div>
+            </div>
+            
+            <button id="finalize-agreements-btn" class="btn primary full-width" style="margin-top: 1rem;">Finalizar Acuerdos y Generar Acta PDF</button>
+        </div>
+    </section>
+
+    <section id="preview-screen" class="screen">
+        <div class="glass-card" style="padding: 1.5rem; max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; min-height: 100vh;">
+            <header style="width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                <button id="preview-back-btn" class="btn secondary">⬅️ Volver</button>
+                <div style="display: flex; gap: 1rem;">
+                    <button id="preview-pdf-btn" class="btn primary" style="background: #ef4444; border: none;">📄 Descargar PDF</button>
+                    <button id="preview-word-btn" class="btn primary" style="background: #3b82f6; border: none;">📝 Descargar Word</button>
+                </div>
+            </header>
+            
+            <div id="preview-content" style="width: 100%; max-width: 800px; background: white; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); overflow: hidden;">
+                <!-- Plantilla Oculta para el Acta de Convocatoria en PDF -->
+                <div id="pre-pdf-template-container" style="display: none; background: white; color: black; padding: 40px; font-family: Arial, sans-serif; width: 100%; box-sizing: border-box;">
+                    <div style="border-bottom: 2px solid #10b981; padding-bottom: 10px; margin-bottom: 20px;">
+                        <h1 style="color: #10b981; margin: 0;">CONVOCATORIA A REUNIÓN</h1>
+                        <div style="margin-top: 10px;">
+                            <p id="pre-pdf-meeting-title" style="font-size: 18px; font-weight: bold; margin: 0;"></p>
+                            <p id="pre-pdf-meeting-client" style="color: #64748b; margin: 5px 0 0 0;"></p>
+                            <p id="pre-pdf-meeting-date-time" style="color: #64748b; margin: 5px 0 0 0;"></p>
+                            <p id="pre-pdf-meeting-location" style="color: #64748b; margin: 5px 0 0 0;"></p>
+                            <p id="pre-pdf-meeting-attendees" style="color: #64748b; margin: 5px 0 0 0; font-style: italic;"></p>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 20px;">
+                        <h2 style="font-size: 16px; color: #10b981; margin: 0 0 15px 0;">AGENDA PROPUESTA</h2>
+                        <div id="pre-pdf-topics-list">
+                            <!-- Temas a tratar generados dinámicamente -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Plantilla Oculta para el Acta en PDF -->
+                <div id="pdf-template-container" style="display: none; background: white; color: black; padding: 40px; font-family: Arial, sans-serif; width: 100%; box-sizing: border-box;">
+                    <div style="border-bottom: 2px solid #1e293b; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div>
+                            <h1 style="color: #1e293b; font-size: 24px; margin: 0 0 10px 0;">ACTA DE REUNIÓN</h1>
+                            <p id="pdf-meeting-title" style="font-size: 18px; font-weight: bold; margin: 0;"></p>
+                            <p id="pdf-meeting-client" style="color: #64748b; margin: 5px 0 0 0;"></p>
+                            <p id="pdf-meeting-date" style="color: #64748b; margin: 5px 0 0 0;"></p>
+                        </div>
+                        <img src="logo.png" alt="Logo" style="max-height: 80px; max-width: 150px; border-radius: 12px; object-fit: contain;">
+                    </div>
+                    
+                    <h2 style="font-size: 18px; color: #3b82f6; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">1. RESUMEN DE TIEMPOS</h2>
+                    <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 30px;">
+                        <p style="margin: 0;"><strong>Tiempo Planificado Total:</strong> <span id="pdf-planned-time"></span></p>
+                        <p id="pdf-actual-time-container" style="margin: 5px 0 0 0;"><strong>Tiempo Real Invertido:</strong> <span id="pdf-actual-time"></span></p>
+                    </div>
+                    
+                    <h2 style="font-size: 18px; color: #3b82f6; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">2. AGENDA TRATADA Y ACUERDOS</h2>
+                    <div id="pdf-topics-list">
+                        <!-- Los temas y acuerdos se inyectarán aquí -->
+                    </div>
+
+                    <div id="pdf-general-support-section" style="display: none;">
+                        <h2 style="font-size: 18px; color: #3b82f6; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; margin-top: 30px;">3. SOPORTE GENERAL</h2>
+                        <div style="background: #f8fafc; padding: 15px; border-radius: 8px;">
+                            <p id="pdf-meeting-link-container" style="margin: 0 0 10px 0;"><strong>Enlace:</strong> <a id="pdf-meeting-link" href="#" target="_blank" style="color: #3b82f6; word-break: break-all;"></a></p>
+                            <p style="margin: 0;"><strong>Resumen General:</strong></p>
+                            <p id="pdf-meeting-summary" style="margin: 5px 0 0 0; white-space: pre-wrap; font-size: 14px;"></p>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 50px; text-align: center; color: #94a3b8; font-size: 12px; border-top: 1px solid #e2e8f0; padding-top: 20px;">
+                        <p>Generado automáticamente mediante el Gestor de Reuniones.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Librerías Externas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="app.js?v=25"></script>
 </body>
 </html>
