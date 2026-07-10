@@ -533,13 +533,13 @@ function setupEventListeners() {
             meetingLinkInput.value = agenda.meetingLink || '';
             meetingSummaryInput.value = agenda.meetingSummary || '';
 
-            // Verificar si debe ser de solo lectura
-            const isDone = agenda.agreements && agenda.agreements.length > 0;
-            setReadOnlyMode(agreementsScreen, isDone);
+            // NUNCA bloquear la pantalla de acuerdos para permitir registro Ex-Post
+            setReadOnlyMode(agreementsScreen, false);
             
             // Ajustar texto del botón PDF según estado
+            const isDone = agenda.status !== 'agendada';
             if (isDone) {
-                finalizeAgreementsBtn.textContent = "Regenerar y Descargar Acta PDF";
+                finalizeAgreementsBtn.textContent = "Generar y Descargar Acta PDF";
             } else {
                 finalizeAgreementsBtn.textContent = "Finalizar Acuerdos y Generar Acta PDF";
             }
@@ -1548,8 +1548,8 @@ function openAgenda(id) {
     renderAttendees();
     totalTimeInput.value = agenda.totalTimeMinutes || 0;
     
-    // Si la agenda tiene acuerdos, asumimos que ya finalizó y la ponemos en read-only
-    const isDone = agenda.agreements && agenda.agreements.length > 0;
+    // Si la agenda ya no está agendada (está realizada), ponemos la pantalla Setup en read-only
+    const isDone = agenda.status !== 'agendada';
     setReadOnlyMode(setupScreen, isDone);
     
     
@@ -2158,8 +2158,8 @@ async function generatePDF() {
         console.error("Error generando PDF:", e);
         alert("Ocurrió un error al generar el PDF.");
     } finally {
-        const isDone = agenda.agreements && agenda.agreements.length > 0;
-        finalizeAgreementsBtn.textContent = isDone ? "Regenerar y Descargar Acta PDF" : "Finalizar Acuerdos y Generar Acta PDF";
+        const isDone = agenda.status !== 'agendada';
+        finalizeAgreementsBtn.textContent = isDone ? "Generar y Descargar Acta PDF" : "Finalizar Acuerdos y Generar Acta PDF";
         finalizeAgreementsBtn.disabled = false;
     }
 }
