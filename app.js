@@ -2759,3 +2759,6 @@ function renderInlineAgreementsBody(agenda, topic) {
 function closeInlineModal() {
     inlineAgreementsModal.style.display = 'none';
 }
+
+// Inicializar la app
+init();
