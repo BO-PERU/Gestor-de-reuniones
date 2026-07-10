@@ -183,12 +183,16 @@
                         <input type="date" id="meeting-date">
                     </div>
                     <div class="input-group">
-                        <label for="meeting-time">Hora</label>
+                        <label for="meeting-time">Hora Inicio</label>
                         <input type="time" id="meeting-time">
                     </div>
                     <div class="input-group">
+                        <label for="meeting-end-time">Hora Fin</label>
+                        <input type="time" id="meeting-end-time">
+                    </div>
+                    <div class="input-group">
                         <label for="total-time">Minutos</label>
-                        <input type="number" id="total-time" placeholder="Ej. 60" min="1">
+                        <input type="number" id="total-time" placeholder="0" min="1" readonly style="background: rgba(0,0,0,0.4); color: #94a3b8;">
                     </div>
                 </div>
                 
@@ -200,8 +204,11 @@
                 </div>
 
                 <div class="input-group" style="margin-bottom: 1.5rem;">
-                    <label for="meeting-attendees">Asistentes</label>
-                    <textarea id="meeting-attendees" placeholder="Juan Pérez, Ana Gómez" rows="2" style="width:100%; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.2); color:white; padding:0.5rem;"></textarea>
+                    <label>Integrantes / Asistentes</label>
+                    <div id="attendees-container" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px;">
+                        <!-- Los integrantes se generarán aquí -->
+                    </div>
+                    <button id="add-attendee-btn" class="btn secondary small" style="align-self: flex-start; width: auto; font-size: 0.8rem; padding: 0.4rem 0.8rem;">+ Agregar Integrante</button>
                 </div>
 
                 <details style="margin-bottom: 1rem; color: var(--text-secondary); border: 1px solid var(--glass-border); padding: 0.8rem; border-radius: 8px; background: rgba(255,255,255,0.02);">
@@ -263,6 +270,11 @@
             </div>
             
             <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                <button id="clone-agenda-btn-main" class="btn secondary full-width" style="color: var(--accent-color); border-color: rgba(59, 130, 246, 0.3);">📄 Clonar Reunión</button>
+                <button id="delete-agenda-btn-main" class="btn secondary full-width" style="color: var(--danger-color); border-color: rgba(239, 68, 68, 0.3);">🗑 Eliminar Reunión</button>
+            </div>
+            
+            <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
                 <button id="start-btn" class="btn start-btn full-width" style="margin:0;">▶ Iniciar Gestor de Tiempos</button>
             </div>
         </section>
@@ -288,6 +300,7 @@
             </div>
 
             <div class="controls">
+                <button id="inline-agreements-btn" class="btn secondary" style="background: rgba(139, 92, 246, 0.2); color: #c4b5fd; border-color: rgba(139, 92, 246, 0.4);">📝 Acuerdos</button>
                 <button id="pause-resume-btn" class="btn secondary">Pausar</button>
                 <button id="skip-btn" class="btn primary">Siguiente Tema</button>
             </div>
@@ -299,6 +312,18 @@
             
             <button id="end-meeting-btn" class="btn danger full-width" style="margin-top: 1rem;">Finalizar Reunión</button>
         </section>
+        
+        <!-- Modal Inline de Acuerdos -->
+        <div id="inline-agreements-modal" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
+            <div class="modal-content glass-card" style="width: 90%; max-width: 500px; padding: 1.5rem; max-height: 90vh; overflow-y: auto;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3 style="margin: 0; color: #fff;">Acuerdos: <span id="inline-modal-topic-name">Tema</span></h3>
+                    <button id="close-inline-modal-btn" style="background: transparent; border: none; color: white; font-size: 1.5rem; cursor: pointer;">&times;</button>
+                </div>
+                <div id="inline-modal-body"></div>
+                <button id="inline-modal-done-btn" class="btn primary full-width" style="margin-top: 1.5rem;">Cerrar y Continuar</button>
+            </div>
+        </div>
         
         <!-- Pantalla de Resumen -->
         <section id="summary-screen" class="screen">
@@ -364,54 +389,59 @@
             <div id="preview-content" style="width: 100%; max-width: 800px; background: white; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); overflow: hidden;">
                 <!-- Plantilla Oculta para el Acta de Convocatoria en PDF -->
                 <div id="pre-pdf-template-container" style="display: none; background: white; color: black; padding: 40px; font-family: Arial, sans-serif; width: 100%; box-sizing: border-box;">
-                    <div style="border-bottom: 2px solid #10b981; padding-bottom: 10px; margin-bottom: 20px;">
-                        <h1 style="color: #10b981; margin: 0;">CONVOCATORIA A REUNIÓN</h1>
-                        <div style="margin-top: 10px;">
-                            <p id="pre-pdf-meeting-title" style="font-size: 18px; font-weight: bold; margin: 0;"></p>
-                            <p id="pre-pdf-meeting-client" style="color: #64748b; margin: 5px 0 0 0;"></p>
-                            <p id="pre-pdf-meeting-date-time" style="color: #64748b; margin: 5px 0 0 0;"></p>
-                            <p id="pre-pdf-meeting-location" style="color: #64748b; margin: 5px 0 0 0;"></p>
-                            <p id="pre-pdf-meeting-attendees" style="color: #64748b; margin: 5px 0 0 0; font-style: italic;"></p>
+                    <div style="border-bottom: 2px solid #0f172a; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div>
+                            <h1 style="color: #0f172a; font-size: 24px; margin: 0 0 10px 0; text-transform: uppercase; letter-spacing: 1px;">CONVOCATORIA A REUNIÓN</h1>
+                            <p id="pre-pdf-meeting-title" style="font-size: 18px; font-weight: bold; margin: 0; color: #1e293b;"></p>
+                            <p id="pre-pdf-meeting-client" style="color: #475569; margin: 5px 0 0 0;"></p>
+                            <p id="pre-pdf-meeting-date-time" style="color: #475569; margin: 5px 0 0 0;"></p>
+                            <p id="pre-pdf-meeting-location" style="color: #475569; margin: 5px 0 0 0;"></p>
+                            <p id="pre-pdf-meeting-attendees" style="color: #475569; margin: 5px 0 0 0; font-style: italic;"></p>
                         </div>
+                        <img src="logo.png" alt="Logo" style="max-height: 80px; max-width: 150px; border-radius: 8px; object-fit: contain;">
                     </div>
 
                     <div style="margin-bottom: 20px;">
-                        <h2 style="font-size: 16px; color: #10b981; margin: 0 0 15px 0;">AGENDA PROPUESTA</h2>
+                        <h2 style="font-size: 18px; color: #2563eb; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">AGENDA PROPUESTA</h2>
                         <div id="pre-pdf-topics-list">
                             <!-- Temas a tratar generados dinámicamente -->
                         </div>
+                    </div>
+                    
+                    <div style="margin-top: 50px; text-align: center; color: #94a3b8; font-size: 12px; border-top: 1px solid #e2e8f0; padding-top: 20px;">
+                        <p>Generado automáticamente mediante el Gestor de Reuniones.</p>
                     </div>
                 </div>
 
                 <!-- Plantilla Oculta para el Acta en PDF -->
                 <div id="pdf-template-container" style="display: none; background: white; color: black; padding: 40px; font-family: Arial, sans-serif; width: 100%; box-sizing: border-box;">
-                    <div style="border-bottom: 2px solid #1e293b; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div style="border-bottom: 2px solid #0f172a; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-start;">
                         <div>
-                            <h1 style="color: #1e293b; font-size: 24px; margin: 0 0 10px 0;">ACTA DE REUNIÓN</h1>
-                            <p id="pdf-meeting-title" style="font-size: 18px; font-weight: bold; margin: 0;"></p>
-                            <p id="pdf-meeting-client" style="color: #64748b; margin: 5px 0 0 0;"></p>
-                            <p id="pdf-meeting-date" style="color: #64748b; margin: 5px 0 0 0;"></p>
+                            <h1 style="color: #0f172a; font-size: 24px; margin: 0 0 10px 0; text-transform: uppercase; letter-spacing: 1px;">ACTA DE REUNIÓN</h1>
+                            <p id="pdf-meeting-title" style="font-size: 18px; font-weight: bold; margin: 0; color: #1e293b;"></p>
+                            <p id="pdf-meeting-client" style="color: #475569; margin: 5px 0 0 0;"></p>
+                            <p id="pdf-meeting-date" style="color: #475569; margin: 5px 0 0 0;"></p>
                         </div>
-                        <img src="logo.png" alt="Logo" style="max-height: 80px; max-width: 150px; border-radius: 12px; object-fit: contain;">
+                        <img src="logo.png" alt="Logo" style="max-height: 80px; max-width: 150px; border-radius: 8px; object-fit: contain;">
                     </div>
                     
-                    <h2 style="font-size: 18px; color: #3b82f6; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">1. RESUMEN DE TIEMPOS</h2>
-                    <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 30px;">
-                        <p style="margin: 0;"><strong>Tiempo Planificado Total:</strong> <span id="pdf-planned-time"></span></p>
-                        <p id="pdf-actual-time-container" style="margin: 5px 0 0 0;"><strong>Tiempo Real Invertido:</strong> <span id="pdf-actual-time"></span></p>
+                    <h2 style="font-size: 18px; color: #2563eb; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">1. RESUMEN DE TIEMPOS</h2>
+                    <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 30px; border-left: 4px solid #e2e8f0;">
+                        <p style="margin: 0; color: #334155;"><strong>Tiempo Planificado Total:</strong> <span id="pdf-planned-time"></span></p>
+                        <p id="pdf-actual-time-container" style="margin: 5px 0 0 0; color: #334155;"><strong>Tiempo Real Invertido:</strong> <span id="pdf-actual-time"></span></p>
                     </div>
                     
-                    <h2 style="font-size: 18px; color: #3b82f6; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">2. AGENDA TRATADA Y ACUERDOS</h2>
+                    <h2 style="font-size: 18px; color: #2563eb; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">2. AGENDA TRATADA Y ACUERDOS</h2>
                     <div id="pdf-topics-list">
                         <!-- Los temas y acuerdos se inyectarán aquí -->
                     </div>
 
                     <div id="pdf-general-support-section" style="display: none;">
-                        <h2 style="font-size: 18px; color: #3b82f6; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; margin-top: 30px;">3. SOPORTE GENERAL</h2>
-                        <div style="background: #f8fafc; padding: 15px; border-radius: 8px;">
-                            <p id="pdf-meeting-link-container" style="margin: 0 0 10px 0;"><strong>Enlace:</strong> <a id="pdf-meeting-link" href="#" target="_blank" style="color: #3b82f6; word-break: break-all;"></a></p>
-                            <p style="margin: 0;"><strong>Resumen General:</strong></p>
-                            <p id="pdf-meeting-summary" style="margin: 5px 0 0 0; white-space: pre-wrap; font-size: 14px;"></p>
+                        <h2 style="font-size: 18px; color: #2563eb; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; margin-top: 30px;">3. SOPORTE GENERAL</h2>
+                        <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #e2e8f0;">
+                            <p id="pdf-meeting-link-container" style="margin: 0 0 10px 0; color: #334155;"><strong>Enlace:</strong> <a id="pdf-meeting-link" href="#" target="_blank" style="color: #2563eb; word-break: break-all;"></a></p>
+                            <p style="margin: 0; color: #334155;"><strong>Resumen General:</strong></p>
+                            <p id="pdf-meeting-summary" style="margin: 5px 0 0 0; white-space: pre-wrap; font-size: 14px; color: #475569;"></p>
                         </div>
                     </div>
                     
@@ -426,6 +456,6 @@
     <!-- Librerías Externas -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=25"></script>
+    <script src="app.js?v=38"></script>
 </body>
 </html>

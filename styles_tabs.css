@@ -1,0 +1,23 @@
+.tab-btn, .client-tab-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tab-btn:hover, .client-tab-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.tab-btn.active, .client-tab-btn.active {
+    color: white;
+    background: linear-gradient(135deg, var(--accent-color), #8b5cf6);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}

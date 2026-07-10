@@ -47,8 +47,10 @@ const meetingNameInput = document.getElementById('meeting-name');
 const meetingClientInput = document.getElementById('meeting-client');
 const meetingDateInput = document.getElementById('meeting-date');
 const meetingTimeInput = document.getElementById('meeting-time');
+const meetingEndTimeInput = document.getElementById('meeting-end-time');
 const meetingLocationInput = document.getElementById('meeting-location');
-const meetingAttendeesInput = document.getElementById('meeting-attendees');
+const attendeesContainer = document.getElementById('attendees-container');
+const addAttendeeBtn = document.getElementById('add-attendee-btn');
 const totalTimeInput = document.getElementById('total-time');
 
 const topicNameInput = document.getElementById('topic-name');
@@ -70,6 +72,7 @@ const elapsedTimeEl = document.getElementById('elapsed-time');
 const topicDurationBadge = document.getElementById('topic-duration-badge');
 const pauseResumeBtn = document.getElementById('pause-resume-btn');
 const skipBtn = document.getElementById('skip-btn');
+const inlineAgreementsBtn = document.getElementById('inline-agreements-btn');
 const nextTopicName = document.getElementById('next-topic-name');
 const endMeetingBtn = document.getElementById('end-meeting-btn');
 
@@ -379,14 +382,31 @@ function setupEventListeners() {
     if (document.getElementById('guest-email')) {
         document.getElementById('guest-email').addEventListener('input', updateCurrentAgenda);
     }
-    meetingDateInput.addEventListener('change', updateCurrentAgenda);
-    meetingTimeInput.addEventListener('input', updateCurrentAgenda);
+    meetingDateInput.addEventListener('input', updateCurrentAgenda);
+    meetingTimeInput.addEventListener('input', () => {
+        calculateTotalTime();
+        updateCurrentAgenda();
+    });
+    meetingEndTimeInput.addEventListener('input', () => {
+        calculateTotalTime();
+        updateCurrentAgenda();
+    });
     meetingLocationInput.addEventListener('input', updateCurrentAgenda);
-    meetingAttendeesInput.addEventListener('input', updateCurrentAgenda);
     totalTimeInput.addEventListener('change', updateCurrentAgenda);
     totalTimeInput.addEventListener('input', () => {
         updateCurrentAgenda();
         updateSummary();
+    });
+
+    addAttendeeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const agenda = getCurrentAgenda();
+        if (agenda) {
+            agenda.attendees = agenda.attendees || [];
+            agenda.attendees.push({ id: Date.now().toString(), name: '', email: '' });
+            renderAttendees();
+            updateCurrentAgenda();
+        }
     });
 
     addTopicBtn.addEventListener('click', addTopic);
@@ -396,10 +416,67 @@ function setupEventListeners() {
         renderAgendasList();
     });
     
+    if (document.getElementById('delete-agenda-btn-main')) {
+        document.getElementById('delete-agenda-btn-main').addEventListener('click', () => {
+            if(confirm('¿Estás seguro de que deseas eliminar esta reunión por completo? Esta acción no se puede deshacer.')) {
+                const agenda = getCurrentAgenda();
+                if (agenda) {
+                    appState.agendas = appState.agendas.filter(a => a.id !== agenda.id);
+                    saveState();
+                    switchScreen(setupScreen, agendasListScreen);
+                    renderAgendasList();
+                }
+            }
+        });
+    }
+
+    if (document.getElementById('clone-agenda-btn-main')) {
+        document.getElementById('clone-agenda-btn-main').addEventListener('click', () => {
+            if(confirm('¿Deseas crear una copia de esta reunión? Se conservarán los temas y tiempos, pero podrás editar el cliente, la fecha y los integrantes.')) {
+                const agenda = getCurrentAgenda();
+                if (agenda) {
+                    const clonedAgenda = {
+                        id: Date.now().toString(),
+                        name: agenda.name + ' (Copia)',
+                        client: agenda.client || '',
+                        date: '', // Reiniciar fecha para la nueva
+                        time: '',
+                        location: agenda.location || '',
+                        attendees: [],
+                        status: 'agendada',
+                        wasRescheduled: false,
+                        totalTimeMinutes: agenda.totalTimeMinutes,
+                        topics: agenda.topics.map(t => ({
+                            id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                            name: t.name,
+                            allocatedMinutes: t.allocatedMinutes,
+                            allocatedSeconds: t.allocatedSeconds,
+                            elapsedSeconds: 0,
+                            summary: ''
+                        })),
+                        agreements: [],
+                        owner_id: appState.user?.id || null
+                    };
+                    appState.agendas.push(clonedAgenda);
+                    saveState();
+                    openAgenda(clonedAgenda.id);
+                }
+            }
+        });
+    }
+    
     // Timer
     pauseResumeBtn.addEventListener('click', togglePause);
     skipBtn.addEventListener('click', skipToNextTopic);
     endMeetingBtn.addEventListener('click', finishMeeting);
+    inlineAgreementsBtn.addEventListener('click', () => {
+        if (!appState.timerInterval) {
+            // Already paused
+        } else {
+            pauseTimer();
+        }
+        openInlineAgreementsModal();
+    });
     
     // Resumen
     newMeetingBtn.addEventListener('click', () => {
@@ -748,8 +825,8 @@ function renderMasterTasks() {
                 </div>
                 <div class="mt-tags">
                     <span class="mt-tag">🏢 ${agr.clientName}</span>
-                    <span class="mt-tag">📅 Límite: ${dateStr}</span>
-                    <span class="mt-tag">👤 Resp: ${agr.responsible || 'No asignado'}</span>
+                    <span class="mt-tag edit-date-btn" data-id="${agr.id}" style="cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'" title="Editar Fecha Límite">📅 Límite: ${dateStr} ✏️</span>
+                    <span class="mt-tag edit-resp-btn" data-id="${agr.id}" style="cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'" title="Editar Responsable">👤 Resp: ${agr.responsible || 'No asignado'} ✏️</span>
                 </div>
             </div>
         `;
@@ -769,6 +846,39 @@ function renderMasterTasks() {
             renderMasterTasks();
         });
         
+        card.querySelector('.edit-date-btn').addEventListener('click', (e) => {
+            const newDate = prompt('Ingrese nueva fecha límite (YYYY-MM-DD) o deje vacío:', agr.deadline || '');
+            if (newDate !== null) {
+                appState.agendas.forEach(agenda => {
+                    if (agenda.agreements) {
+                        const found = agenda.agreements.find(a => a.id === agr.id);
+                        if (found) {
+                            found.deadline = newDate;
+                            found.date = newDate;
+                        }
+                    }
+                });
+                saveState();
+                renderMasterTasks();
+            }
+        });
+        
+        card.querySelector('.edit-resp-btn').addEventListener('click', (e) => {
+            const newResp = prompt('Ingrese nuevo(s) responsable(s) separados por coma:', agr.responsible || '');
+            if (newResp !== null) {
+                appState.agendas.forEach(agenda => {
+                    if (agenda.agreements) {
+                        const found = agenda.agreements.find(a => a.id === agr.id);
+                        if (found) {
+                            found.responsible = newResp.trim();
+                        }
+                    }
+                });
+                saveState();
+                renderMasterTasks();
+            }
+        });
+
         masterTasksList.appendChild(card);
     });
 }
@@ -834,6 +944,43 @@ function renderClientsList() {
     });
 }
 
+function getStatusBadgeHTML(agenda) {
+    const status = agenda.status || 'agendada';
+    let bgColor, color, borderColor, text;
+    
+    switch(status) {
+        case 'realizada':
+            bgColor = 'rgba(16, 185, 129, 0.2)'; color = '#6ee7b7'; borderColor = 'rgba(16, 185, 129, 0.3)'; text = '✓ Realizada';
+            break;
+        case 'por_reagendar':
+            bgColor = 'rgba(139, 92, 246, 0.2)'; color = '#c4b5fd'; borderColor = 'rgba(139, 92, 246, 0.3)'; text = 'Por reagendar';
+            break;
+        case 'no_realizada':
+            bgColor = 'rgba(239, 68, 68, 0.2)'; color = '#fca5a5'; borderColor = 'rgba(239, 68, 68, 0.3)'; text = 'No realizada';
+            break;
+        case 'agendada':
+        case 'pendiente':
+        default:
+            bgColor = 'rgba(245, 158, 11, 0.2)'; color = '#fcd34d'; borderColor = 'rgba(245, 158, 11, 0.3)'; text = 'Pendiente';
+            break;
+    }
+
+    return `
+        <span class="status-cycle-badge" data-id="${agenda.id}" style="
+            background: ${bgColor}; 
+            color: ${color}; 
+            border: 1px solid ${borderColor}; 
+            font-size: 0.7rem; 
+            padding: 0.3rem 0.6rem; 
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            user-select: none;
+            transition: all 0.2s ease;
+        " title="Clic para cambiar estado">${text}</span>
+    `;
+}
+
 function renderClientMeetings(clientName) {
     clientsListContainer.style.display = 'none';
     clientMeetingsContainer.style.display = 'block';
@@ -871,10 +1018,8 @@ function renderClientMeetings(clientName) {
         li.className = 'agenda-card';
         
         const dateStr = agenda.date ? new Date(agenda.date + 'T12:00:00').toLocaleDateString() : 'Sin fecha';
-        const isDone = agenda.agreements && agenda.agreements.length > 0;
-        const statusBadge = isDone 
-            ? '<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px;">✓ Realizada</span>'
-            : '<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.3); font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px;">Pendiente</span>';
+        const isDone = agenda.status === 'realizada';
+        const statusBadge = getStatusBadgeHTML(agenda);
         
         li.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: flex-start;">
@@ -886,13 +1031,32 @@ function renderClientMeetings(clientName) {
                 <span style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;"><span style="font-size: 1rem;">⏱</span> ${agenda.totalTimeMinutes}m</span>
             </div>
             <div class="card-actions" style="margin-top: 1rem; display: flex; gap: 0.5rem;">
-                ${isDone ? '' : `<button class="btn primary small start-agenda-btn" data-id="${agenda.id}">Comenzar</button>`}
-                ${isDone ? '' : `<button class="btn secondary small expost-agenda-btn" data-id="${agenda.id}">Registro Ex-Post</button>`}
+                ${isDone || agenda.status !== 'agendada' ? '' : `<button class="btn primary small start-agenda-btn" data-id="${agenda.id}">Comenzar</button>`}
+                ${isDone || agenda.status !== 'agendada' ? '' : `<button class="btn secondary small expost-agenda-btn" data-id="${agenda.id}">Registro Ex-Post</button>`}
                 <button class="btn secondary small edit-agenda-btn" data-id="${agenda.id}">${isDone ? 'Ver Acta/Agenda' : 'Editar'}</button>
             </div>
-            <button class="delete-agenda-btn" title="Eliminar agenda">🗑</button>
+            ${agenda.owner_id === appState.user?.id || !agenda.owner_id ? `<button class="delete-agenda-btn" title="Eliminar agenda">🗑</button>` : ''}
         `;
         
+        const statusCycle = li.querySelector('.status-cycle-badge');
+        if (statusCycle) {
+            statusCycle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const cycle = ['agendada', 'realizada', 'por_reagendar', 'no_realizada'];
+                const currentIndex = cycle.indexOf(agenda.status || 'agendada');
+                agenda.status = cycle[(currentIndex + 1) % cycle.length];
+                
+                if (agenda.status === 'por_reagendar') {
+                    agenda.date = '';
+                    agenda.time = '';
+                    agenda.endTime = '';
+                }
+                
+                saveState();
+                renderClientMeetings(clientName);
+            });
+        }
+
         const startBtn = li.querySelector('.start-agenda-btn');
         if (startBtn) {
             startBtn.addEventListener('click', (e) => {
@@ -1159,10 +1323,8 @@ function renderFilteredList(filterType) {
         const dateStr = agenda.date ? new Date(agenda.date + 'T12:00:00').toLocaleDateString() : 'Sin fecha';
         const clientStr = agenda.client || 'Sin cliente';
         
-        const isDone = agenda.agreements && agenda.agreements.length > 0;
-        const statusBadge = isDone 
-            ? '<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px;">✓ Realizada</span>'
-            : '<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.3); font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px;">Pendiente</span>';
+        const isDone = agenda.status === 'realizada';
+        const statusBadge = getStatusBadgeHTML(agenda);
         
         li.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: flex-start;">
@@ -1175,12 +1337,31 @@ function renderFilteredList(filterType) {
                 <span>⏱ ${agenda.totalTimeMinutes}m</span>
             </div>
             <div class="card-actions" style="margin-top: 1rem; display: flex; gap: 0.5rem;">
-                ${isDone ? '' : `<button class="btn primary small start-agenda-btn" data-id="${agenda.id}">Comenzar</button>`}
-                ${isDone ? '' : `<button class="btn secondary small expost-agenda-btn" data-id="${agenda.id}">Registro Ex-Post</button>`}
+                ${isDone || agenda.status !== 'agendada' ? '' : `<button class="btn primary small start-agenda-btn" data-id="${agenda.id}">Comenzar</button>`}
+                ${isDone || agenda.status !== 'agendada' ? '' : `<button class="btn secondary small expost-agenda-btn" data-id="${agenda.id}">Registro Ex-Post</button>`}
                 <button class="btn secondary small edit-agenda-btn" data-id="${agenda.id}">${isDone ? 'Ver Acta/Agenda' : 'Editar'}</button>
             </div>
             ${agenda.owner_id === appState.user?.id || !agenda.owner_id ? `<button class="delete-agenda-btn" title="Eliminar agenda">🗑</button>` : ''}
         `;
+        
+        const statusCycle = li.querySelector('.status-cycle-badge');
+        if (statusCycle) {
+            statusCycle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const cycle = ['agendada', 'realizada', 'por_reagendar', 'no_realizada'];
+                const currentIndex = cycle.indexOf(agenda.status || 'agendada');
+                agenda.status = cycle[(currentIndex + 1) % cycle.length];
+                
+                if (agenda.status === 'por_reagendar') {
+                    agenda.date = '';
+                    agenda.time = '';
+                    agenda.endTime = '';
+                }
+                
+                saveState();
+                renderAgendasList();
+            });
+        }
         
         const startBtn = li.querySelector('.start-agenda-btn');
         if (startBtn) {
@@ -1229,7 +1410,7 @@ function createNewAgenda() {
         date: '',
         time: '',
         location: '',
-        attendees: '',
+        attendees: [],
         status: 'agendada', // Estado inicial
         wasRescheduled: false,
         totalTimeMinutes: 0,
@@ -1306,10 +1487,17 @@ async function generatePrePDF() {
         document.getElementById('pre-pdf-meeting-title').textContent = agenda.name || 'Reunión sin título';
         document.getElementById('pre-pdf-meeting-client').textContent = agenda.client ? `Cliente/Proyecto: ${agenda.client}` : '';
         const dateStr = agenda.date ? new Date(agenda.date + 'T12:00:00').toLocaleDateString() : 'Sin fecha';
-        const timeStr = agenda.time ? ` a las ${agenda.time}` : '';
+        const timeStr = agenda.time ? ` de ${agenda.time} a ${agenda.endTime || '?'}` : '';
         document.getElementById('pre-pdf-meeting-date-time').textContent = `Fecha y Hora: ${dateStr}${timeStr}`;
         document.getElementById('pre-pdf-meeting-location').textContent = agenda.location ? `Lugar/Enlace: ${agenda.location}` : '';
-        document.getElementById('pre-pdf-meeting-attendees').textContent = agenda.attendees ? `Asistentes: ${agenda.attendees}` : '';
+        
+        let attendeesText = '';
+        if (Array.isArray(agenda.attendees) && agenda.attendees.length > 0) {
+            attendeesText = agenda.attendees.filter(a => a.name.trim() !== '').map(a => a.name).join(', ');
+        } else if (typeof agenda.attendees === 'string' && agenda.attendees.trim() !== '') {
+            attendeesText = agenda.attendees;
+        }
+        document.getElementById('pre-pdf-meeting-attendees').textContent = attendeesText ? `Asistentes: ${attendeesText}` : '';
 
         const topicsList = document.getElementById('pre-pdf-topics-list');
         topicsList.innerHTML = '';
@@ -1319,7 +1507,7 @@ async function generatePrePDF() {
             div.style.marginBottom = '15px';
             div.style.padding = '10px';
             div.style.background = '#f8fafc';
-            div.style.borderLeft = '3px solid #10b981';
+            div.style.borderLeft = '3px solid #2563eb';
             div.innerHTML = `<h3 style="font-size: 14px; margin: 0; color: #1e293b;">${index + 1}. ${topic.name} <span style="font-weight:normal; color:#64748b; font-size: 12px; margin-left: 5px;">(${topic.allocatedMinutes} min)</span></h3>`;
             topicsList.appendChild(div);
         });
@@ -1355,8 +1543,9 @@ function openAgenda(id) {
     }
     meetingDateInput.value = agenda.date || '';
     meetingTimeInput.value = agenda.time || '';
+    meetingEndTimeInput.value = agenda.endTime || '';
     meetingLocationInput.value = agenda.location || '';
-    meetingAttendeesInput.value = agenda.attendees || '';
+    renderAttendees();
     totalTimeInput.value = agenda.totalTimeMinutes || 0;
     
     // Si la agenda tiene acuerdos, asumimos que ya finalizó y la ponemos en read-only
@@ -1375,8 +1564,9 @@ function loadAgendaIntoSetup(agenda) {
     meetingClientInput.value = agenda.client;
     meetingDateInput.value = agenda.date;
     meetingTimeInput.value = agenda.time || '';
+    meetingEndTimeInput.value = agenda.endTime || '';
     meetingLocationInput.value = agenda.location || '';
-    meetingAttendeesInput.value = agenda.attendees || '';
+    renderAttendees();
     totalTimeInput.value = agenda.totalTimeMinutes || '';
     
     updateSummary();
@@ -1387,24 +1577,86 @@ function loadAgendaIntoSetup(agenda) {
 function updateCurrentAgenda() {
     const agenda = getCurrentAgenda();
     if (!agenda) return;
-    
-    // Solo permitir edición completa si somos owners
-    if (agenda.owner_id && agenda.owner_id !== appState.user?.id) {
-        // Podríamos bloquear edición de datos base aquí, pero el RLS lo protegerá de todos modos
-    }
 
     agenda.name = meetingNameInput.value;
     agenda.client = meetingClientInput.value;
-    if (document.getElementById('guest-email')) {
-        agenda.guest_email = document.getElementById('guest-email').value;
-    }
     agenda.date = meetingDateInput.value;
     agenda.time = meetingTimeInput.value;
+    agenda.endTime = meetingEndTimeInput.value;
     agenda.location = meetingLocationInput.value;
-    agenda.attendees = meetingAttendeesInput.value;
+    
+    // Leer integrantes
+    const attendeeDivs = attendeesContainer.querySelectorAll('.attendee-row');
+    const newAttendees = [];
+    attendeeDivs.forEach(div => {
+        const id = div.getAttribute('data-id');
+        const name = div.querySelector('.attendee-name').value;
+        const email = div.querySelector('.attendee-email').value;
+        newAttendees.push({ id, name, email });
+    });
+    agenda.attendees = newAttendees;
+
     agenda.totalTimeMinutes = parseInt(totalTimeInput.value) || 0;
     
     saveState();
+    updateStatusUI(agenda);
+}
+
+function calculateTotalTime() {
+    const startTime = meetingTimeInput.value;
+    const endTime = meetingEndTimeInput.value;
+    if (startTime && endTime) {
+        const [sh, sm] = startTime.split(':').map(Number);
+        const [eh, em] = endTime.split(':').map(Number);
+        let startMins = sh * 60 + sm;
+        let endMins = eh * 60 + em;
+        if (endMins < startMins) endMins += 24 * 60; // Pasa al día siguiente
+        const diff = endMins - startMins;
+        totalTimeInput.value = diff;
+    }
+}
+
+function renderAttendees() {
+    attendeesContainer.innerHTML = '';
+    const agenda = getCurrentAgenda();
+    if (!agenda) return;
+
+    // Migración retroactiva si asistentes era un string
+    if (typeof agenda.attendees === 'string') {
+        const text = agenda.attendees.trim();
+        agenda.attendees = text ? text.split(',').map(n => ({ id: Date.now().toString(), name: n.trim(), email: '' })) : [];
+    }
+    if (!Array.isArray(agenda.attendees)) {
+        agenda.attendees = [];
+    }
+
+    agenda.attendees.forEach(attendee => {
+        const div = document.createElement('div');
+        div.className = 'attendee-row';
+        div.setAttribute('data-id', attendee.id);
+        div.style.display = 'flex';
+        div.style.gap = '0.5rem';
+        div.style.alignItems = 'center';
+        div.style.marginBottom = '0.5rem';
+
+        div.innerHTML = `
+            <input type="text" class="attendee-name" placeholder="Nombre" value="${attendee.name}" style="flex: 1;" autocomplete="off">
+            <input type="email" class="attendee-email" placeholder="Correo (opcional)" value="${attendee.email}" style="flex: 1;" autocomplete="off">
+            <button class="btn delete-attendee-btn" style="background: none; border: none; color: var(--danger-color); cursor: pointer; padding: 0.2rem;" title="Eliminar">🗑</button>
+        `;
+
+        div.querySelector('.attendee-name').addEventListener('input', updateCurrentAgenda);
+        div.querySelector('.attendee-email').addEventListener('input', updateCurrentAgenda);
+        
+        div.querySelector('.delete-attendee-btn').addEventListener('click', (e) => {
+            e.preventDefault();
+            agenda.attendees = agenda.attendees.filter(a => a.id !== attendee.id);
+            renderAttendees();
+            updateCurrentAgenda();
+        });
+
+        attendeesContainer.appendChild(div);
+    });
 }
 
 function updateSummary() {
@@ -1628,8 +1880,8 @@ function renderAgreementsTopics() {
             </div>
             <div class="input-row" style="text-align: left;">
                 <div class="input-group">
-                    <label>Responsable</label>
-                    <input type="text" id="agr-resp-${topic.id}" placeholder="Ej. María" autocomplete="off">
+                    <label>Responsable(s)</label>
+                    <input type="text" id="agr-resp-${topic.id}" placeholder="Ej. María, Juan" autocomplete="off">
                 </div>
                 <div class="input-group">
                     <label>Criticidad</label>
@@ -1780,17 +2032,12 @@ async function generatePDF() {
     
     if (hasUnsavedAgreements) {
         saveState();
-        renderAgreementsTopics();
-    }
-    
     // Validar librería html2pdf
     if (typeof html2pdf === 'undefined') {
         alert("La herramienta de PDF está cargando. Por favor, intenta de nuevo en unos segundos o recarga la página.");
         return;
     }
     
-    finalizeAgreementsBtn.textContent = "Generando PDF...";
-    finalizeAgreementsBtn.disabled = true;
 
     try {
         // Llenar datos de la cabecera
@@ -1827,7 +2074,7 @@ async function generatePDF() {
             }
 
             topicDiv.innerHTML = `
-                <h3 style="font-size: 16px; color: #1e293b; margin: 0 0 10px 0; background: #f1f5f9; padding: 8px; border-left: 4px solid #3b82f6;">
+                <h3 style="font-size: 16px; color: #1e293b; margin: 0 0 10px 0; background: #f1f5f9; padding: 8px; border-left: 4px solid #2563eb;">
                     ${index + 1}. ${topic.name} ${timeLabel}
                 </h3>
                 ${topicSummaryHtml}
@@ -2004,7 +2251,15 @@ function startMeeting(id) {
     }
     
     agenda.currentTopicIndex = 0;
-    agenda.topics.forEach(t => t.elapsedSeconds = 0); // Reset
+    agenda.topics.forEach(t => {
+        t.elapsedSeconds = 0; // Reset
+        if (typeof t.originalAllocatedSeconds !== 'undefined') {
+            t.allocatedSeconds = t.originalAllocatedSeconds;
+            t.allocatedMinutes = Math.round(t.allocatedSeconds / 60);
+        } else {
+            t.originalAllocatedSeconds = t.allocatedSeconds;
+        }
+    });
     
     activeMeetingName.textContent = agenda.name || 'Reunión sin nombre';
     
@@ -2253,10 +2508,17 @@ function generateAnalyticsHTML(tasks, agendas, prefix) {
     // Responsible Table
     const responsibleStats = {};
     tasks.forEach(t => {
-        const resp = t.responsible ? t.responsible.trim() : 'Sin Asignar';
-        if (!responsibleStats[resp]) responsibleStats[resp] = { total: 0, completed: 0 };
-        responsibleStats[resp].total++;
-        if (t.completed) responsibleStats[resp].completed++;
+        const responsibles = t.responsible 
+            ? t.responsible.split(',').map(r => r.trim()).filter(r => r !== '') 
+            : ['Sin Asignar'];
+            
+        if (responsibles.length === 0) responsibles.push('Sin Asignar');
+
+        responsibles.forEach(resp => {
+            if (!responsibleStats[resp]) responsibleStats[resp] = { total: 0, completed: 0 };
+            responsibleStats[resp].total++;
+            if (t.completed) responsibleStats[resp].completed++;
+        });
     });
 
     let tableHtml = '<div style="display: flex; flex-direction: column; gap: 0.8rem;">';
@@ -2355,4 +2617,145 @@ function renderCalendarView() {
             openAgenda(agendaId); // Abrirá en modo read-only si ya finalizó
         });
     });
+}
+
+// --- LÓGICA DEL MODAL INLINE DE ACUERDOS ---
+const inlineAgreementsModal = document.getElementById('inline-agreements-modal');
+const inlineModalTopicName = document.getElementById('inline-modal-topic-name');
+const inlineModalBody = document.getElementById('inline-modal-body');
+const closeInlineModalBtn = document.getElementById('close-inline-modal-btn');
+const inlineModalDoneBtn = document.getElementById('inline-modal-done-btn');
+
+if (closeInlineModalBtn) closeInlineModalBtn.addEventListener('click', closeInlineModal);
+if (inlineModalDoneBtn) inlineModalDoneBtn.addEventListener('click', closeInlineModal);
+
+function openInlineAgreementsModal() {
+    const agenda = getCurrentAgenda();
+    if (!agenda) return;
+    
+    if (!agenda.agreements) agenda.agreements = [];
+    const topic = agenda.topics[agenda.currentTopicIndex];
+    if (!topic) return;
+
+    inlineModalTopicName.textContent = topic.name;
+    
+    renderInlineAgreementsBody(agenda, topic);
+    
+    inlineAgreementsModal.style.display = 'flex';
+}
+
+function renderInlineAgreementsBody(agenda, topic) {
+    const topicAgreements = agenda.agreements.filter(a => a.topicId === topic.id);
+    
+    let html = `
+        <div class="input-group" style="text-align: left; margin-bottom: 1rem;">
+            <label>Resumen Específico del Tema</label>
+            <textarea id="inline-topic-summary" rows="2" placeholder="Ej. Se concluyó que..." style="width: 100%; resize: vertical; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: white; border-radius: 8px; padding: 0.8rem; font-family: inherit; font-size: 0.95rem; box-sizing: border-box;">${topic.summary || ''}</textarea>
+        </div>
+        
+        <h4 style="margin: 1.5rem 0 0.5rem 0; font-size: 1rem; color: #fff;">Agregar Tarea / Acuerdo</h4>
+        <div class="input-group" style="text-align: left;">
+            <label>Acuerdo / Tarea</label>
+            <input type="text" id="inline-agr-text" placeholder="Ej. Enviar el reporte..." autocomplete="off">
+        </div>
+        <div class="input-row" style="text-align: left;">
+            <div class="input-group">
+                <label>Responsable(s)</label>
+                <input type="text" id="inline-agr-resp" placeholder="Ej. María, Juan" autocomplete="off">
+            </div>
+            <div class="input-group">
+                <label>Criticidad</label>
+                <select id="inline-agr-crit" style="padding: 0.8rem; border-radius: 8px; background: rgba(15, 23, 42, 0.6); color: var(--text-primary); border: 1px solid var(--glass-border);">
+                    <option value="Alta">🔥 Alta</option>
+                    <option value="Media" selected>⚡️ Media</option>
+                    <option value="Baja">❄️ Baja</option>
+                </select>
+            </div>
+        </div>
+        <div class="input-group" style="text-align: left; margin-bottom: 1rem;">
+            <label>Fecha Límite</label>
+            <input type="date" id="inline-agr-date">
+        </div>
+        <button id="inline-add-agr-btn" class="btn secondary full-width small" style="margin-bottom: 1.5rem;">+ Agregar a este tema</button>
+        
+        <h4 style="margin: 1.5rem 0 0.5rem 0; font-size: 1rem; color: #fff;">Acuerdos Registrados</h4>
+        <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 8px; max-height: 200px; overflow-y: auto;">
+    `;
+    
+    if (topicAgreements.length === 0) {
+        html += '<p style="color: var(--text-secondary); font-size: 0.9rem; margin: 0;">No hay acuerdos para este tema.</p>';
+    } else {
+        html += '<ul style="list-style: none; padding: 0; margin: 0;">';
+        topicAgreements.forEach(agr => {
+            const dateFormatted = agr.date ? new Date(agr.date + 'T12:00:00').toLocaleDateString() : 'Sin fecha';
+            let badgeCrit = '';
+            if(agr.criticality === 'Alta') badgeCrit = '🔥';
+            else if(agr.criticality === 'Media') badgeCrit = '⚡️';
+            else if(agr.criticality === 'Baja') badgeCrit = '❄️';
+            
+            html += `
+                <li style="margin-bottom: 0.8rem; padding-bottom: 0.8rem; border-bottom: 1px solid var(--glass-border);">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.4rem;">
+                        <strong style="font-size: 0.95rem; color: var(--text-primary);">&#8226; ${agr.text}</strong>
+                        <button class="inline-del-agr-btn" data-id="${agr.id}" style="background: transparent; border: none; color: var(--danger-color); font-size: 1.2rem; cursor: pointer; padding: 0 0.5rem;">&times;</button>
+                    </div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); display: flex; gap: 1rem; flex-wrap: wrap;">
+                        <span>👤 ${agr.responsible || 'N/A'}</span>
+                        <span>📅 ${dateFormatted}</span>
+                        ${badgeCrit ? `<span>${badgeCrit}</span>` : ''}
+                    </div>
+                </li>
+            `;
+        });
+        html += '</ul>';
+    }
+    
+    html += '</div>';
+    inlineModalBody.innerHTML = html;
+    
+    // Listeners
+    const summaryTextarea = document.getElementById('inline-topic-summary');
+    if (summaryTextarea) {
+        summaryTextarea.addEventListener('input', (e) => {
+            topic.summary = e.target.value;
+            saveState();
+        });
+    }
+    
+    document.getElementById('inline-add-agr-btn').addEventListener('click', () => {
+        const text = document.getElementById('inline-agr-text').value.trim();
+        const resp = document.getElementById('inline-agr-resp').value.trim();
+        const date = document.getElementById('inline-agr-date').value;
+        const crit = document.getElementById('inline-agr-crit').value;
+        
+        if (!text) return alert("El acuerdo no puede estar vacío.");
+        
+        agenda.agreements.push({
+            id: Date.now().toString(),
+            topicId: topic.id,
+            text,
+            responsible: resp,
+            date,
+            deadline: date,
+            criticality: crit,
+            completed: false
+        });
+        saveState();
+        renderInlineAgreementsBody(agenda, topic);
+    });
+    
+    document.querySelectorAll('.inline-del-agr-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            if (confirm("¿Eliminar este acuerdo?")) {
+                const agrId = e.currentTarget.getAttribute('data-id');
+                agenda.agreements = agenda.agreements.filter(a => a.id !== agrId);
+                saveState();
+                renderInlineAgreementsBody(agenda, topic);
+            }
+        });
+    });
+}
+
+function closeInlineModal() {
+    inlineAgreementsModal.style.display = 'none';
 }
