@@ -2032,6 +2032,7 @@ async function generatePDF() {
     
     if (hasUnsavedAgreements) {
         saveState();
+    }
     // Validar librería html2pdf
     if (typeof html2pdf === 'undefined') {
         alert("La herramienta de PDF está cargando. Por favor, intenta de nuevo en unos segundos o recarga la página.");
