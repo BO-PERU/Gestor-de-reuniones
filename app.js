@@ -1133,7 +1133,12 @@ function renderClientMeetings(clientName) {
         
         li.querySelector('.edit-agenda-btn').addEventListener('click', (e) => {
             e.stopPropagation();
-            openAgenda(agenda.id);
+            if (isDone) {
+                appState.currentAgendaId = agenda.id;
+                openAgreementsScreen();
+            } else {
+                openAgenda(agenda.id);
+            }
         });
         
         li.querySelector('.delete-agenda-btn').addEventListener('click', (e) => {
@@ -1907,6 +1912,8 @@ function renderAgreementsTopics() {
     }
     if (!agenda.agreements) agenda.agreements = [];
 
+    const canEdit = !agenda.owner_id || agenda.owner_id === appState.user?.id;
+
     agenda.topics.forEach((topic, index) => {
         const topicAgreements = agenda.agreements.filter(a => a.topicId === topic.id);
         
@@ -1918,27 +1925,42 @@ function renderAgreementsTopics() {
         header.className = 'agreement-topic-header';
         header.innerHTML = `
             <h3>${index + 1}. ${topic.name}</h3>
-            <span style="font-size: 0.8rem; color: var(--text-secondary); font-style: italic; white-space: nowrap; margin-left: 1rem;">(clic para colocar detalle)</span>
+            <span style="font-size: 0.8rem; color: var(--text-secondary); font-style: italic; white-space: nowrap; margin-left: 1rem;">(clic para agregar/editar tarea)</span>
         `;
         
-        // Body (Acordeón)
+        // Summary (Always visible outside accordion)
+        const summaryDiv = document.createElement('div');
+        summaryDiv.style.padding = '1rem 1rem 0 1rem';
+        summaryDiv.innerHTML = `
+            <div class="input-group" style="text-align: left; margin: 0;">
+                <label>Resumen del Tema</label>
+                <textarea id="topic-summary-${topic.id}" rows="2" placeholder="Ej. Se discutió y concluyó que..." style="width: 100%; resize: vertical; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: white; border-radius: 8px; padding: 0.8rem; font-family: inherit; font-size: 0.95rem; box-sizing: border-box;">${topic.summary || ''}</textarea>
+            </div>
+        `;
+        
+        // Body (Acordeón para Agregar/Editar Tarea)
         const body = document.createElement('div');
         body.className = 'agreement-topic-body';
         
-        // Formulario
+        let attendeesOptions = '<option value="">-- Seleccionar Asistente --</option>';
+        if (agenda.attendees && agenda.attendees.length > 0) {
+            attendeesOptions += agenda.attendees.map(a => `<option value="${a.id}">${a.name || a.email || 'Sin nombre'}</option>`).join('');
+        } else {
+            attendeesOptions = '<option value="">(Agrega integrantes a la reunión)</option>';
+        }
+
+        // Formulario de Tareas
         const formHtml = `
-            <div class="input-group" style="text-align: left;">
-                <label>Resumen Específico del Tema</label>
-                <textarea id="topic-summary-${topic.id}" rows="2" placeholder="Ej. Se concluyó que..." style="width: 100%; resize: vertical; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: white; border-radius: 8px; padding: 0.8rem; font-family: inherit; font-size: 0.95rem; box-sizing: border-box; margin-bottom: 1rem;">${topic.summary || ''}</textarea>
-            </div>
             <div class="input-group" style="text-align: left;">
                 <label>Acuerdo / Tarea</label>
                 <input type="text" id="agr-text-${topic.id}" placeholder="Ej. Enviar el reporte..." autocomplete="off">
             </div>
             <div class="input-row" style="text-align: left;">
                 <div class="input-group">
-                    <label>Responsable(s)</label>
-                    <input type="text" id="agr-resp-${topic.id}" placeholder="Ej. María, Juan" autocomplete="off">
+                    <label>Responsable</label>
+                    <select id="agr-resp-${topic.id}" style="padding: 0.8rem; border-radius: 8px; background: rgba(15, 23, 42, 0.6); color: var(--text-primary); border: 1px solid var(--glass-border); width: 100%;">
+                        ${attendeesOptions}
+                    </select>
                 </div>
                 <div class="input-group">
                     <label>Criticidad</label>
@@ -1953,15 +1975,15 @@ function renderAgreementsTopics() {
                 <label>Fecha Límite</label>
                 <input type="date" id="agr-date-${topic.id}">
             </div>
-            <button class="btn secondary full-width small add-agr-btn" data-topic="${topic.id}" style="margin-bottom: 1.5rem;">+ Agregar a este tema</button>
+            <button class="btn secondary full-width small add-agr-btn" data-topic="${topic.id}" style="margin-bottom: 1.5rem;">+ Agregar Tarea</button>
         `;
         
         // Contenedor de Lista de Acuerdos del Tema (Fuera del acordeón)
         const listDiv = document.createElement('div');
-        listDiv.style.padding = '0 1rem 1rem 1rem';
+        listDiv.style.padding = '1rem';
         let listHtml = '<ul class="topics-list" style="margin-top: 0;">';
         if (topicAgreements.length === 0) {
-            listHtml += '<li class="empty-state" style="font-size:0.85rem; padding:0.5rem; background: transparent; border: none; min-height: auto;">Sin acuerdos.</li>';
+            listHtml += '<li class="empty-state" style="font-size:0.85rem; padding:0.5rem; background: transparent; border: none; min-height: auto;">Sin tareas.</li>';
         } else {
             topicAgreements.forEach(agr => {
                 const dateFormatted = agr.date ? new Date(agr.date + 'T12:00:00').toLocaleDateString() : 'Sin fecha';
@@ -1974,7 +1996,10 @@ function renderAgreementsTopics() {
                     <li class="topic-item" style="flex-direction: column; align-items: flex-start; gap: 0.5rem; padding: 0.75rem; background: rgba(15,23,42,0.4); margin-bottom: 0.5rem;">
                         <div style="display: flex; justify-content: space-between; width: 100%;">
                             <strong style="font-size: 0.95rem; color: var(--text-primary);">&#8226; ${agr.text}</strong>
-                            <button class="delete-btn del-agr-btn" data-id="${agr.id}" style="position: static; font-size:1.2rem;">×</button>
+                            <div>
+                                ${canEdit ? `<button class="edit-btn edit-agr-btn" data-id="${agr.id}" style="background:transparent; border:none; color:#3b82f6; font-size:1.2rem; cursor:pointer; margin-right: 0.5rem;" title="Editar">✏️</button>` : ''}
+                                ${canEdit ? `<button class="delete-btn del-agr-btn" data-id="${agr.id}" style="position: static; font-size:1.2rem;" title="Eliminar">×</button>` : ''}
+                            </div>
                         </div>
                         <div style="font-size: 0.8rem; color: var(--text-secondary); display: flex; gap: 1rem;">
                             <span>👤 ${agr.responsible || 'N/A'}</span>
@@ -1990,473 +2015,135 @@ function renderAgreementsTopics() {
         
         body.innerHTML = formHtml;
         card.appendChild(header);
-        card.appendChild(listDiv); // Lista siempre visible
-        card.appendChild(body);    // Formulario oculto
+        card.appendChild(summaryDiv); // Resumen visible siempre
+        card.appendChild(listDiv);    // Lista visible siempre
+        card.appendChild(body);       // Formulario oculto (acordeón)
         
         // Eventos
         header.addEventListener('click', () => {
+            if (!canEdit) return; // Si no puede editar, no se abre el form
             const isActive = card.classList.contains('active');
-            // Cerrar todos los demás
             document.querySelectorAll('.agreement-topic-card').forEach(c => c.classList.remove('active'));
+            
+            // Reset form
+            document.getElementById(`agr-text-${topic.id}`).value = '';
+            document.getElementById(`agr-resp-${topic.id}`).value = '';
+            document.getElementById(`agr-date-${topic.id}`).value = '';
+            const addBtn = card.querySelector('.add-agr-btn');
+            addBtn.textContent = '+ Agregar Tarea';
+            addBtn.removeAttribute('data-edit-id');
+
             if (!isActive) {
                 card.classList.add('active');
-                setTimeout(() => document.getElementById(`topic-summary-${topic.id}`).focus(), 100);
             }
         });
 
-        const topicSummaryInput = document.getElementById(`topic-summary-${topic.id}`);
-        // Nota: document.getElementById puede fallar porque la tarjeta aún no está en el DOM,
-        // así que es mejor usar body.querySelector o añadir el evento una vez agregado al DOM.
-        const summaryTextarea = body.querySelector(`#topic-summary-${topic.id}`);
+        // Summary Listeners (Optimizado anti-lag)
+        const summaryTextarea = summaryDiv.querySelector(`#topic-summary-${topic.id}`);
         if (summaryTextarea) {
             summaryTextarea.addEventListener('input', (e) => {
                 topic.summary = e.target.value;
-                saveState();
+                saveEphemeralState(); // Guardado local rápido anti-lag
+            });
+            summaryTextarea.addEventListener('change', (e) => {
+                topic.summary = e.target.value;
+                saveState(); // Guardado a la nube
             });
         }
         
-        body.querySelector('.add-agr-btn').addEventListener('click', () => {
+        // Agregar / Editar Tarea (Guardar)
+        body.querySelector('.add-agr-btn').addEventListener('click', (e) => {
+            const btn = e.target;
             const text = document.getElementById(`agr-text-${topic.id}`).value.trim();
-            const resp = document.getElementById(`agr-resp-${topic.id}`).value.trim();
+            const respSelect = document.getElementById(`agr-resp-${topic.id}`);
+            const respId = respSelect.value;
+            const respName = respSelect.options[respSelect.selectedIndex]?.text || '';
             const date = document.getElementById(`agr-date-${topic.id}`).value;
             const crit = document.getElementById(`agr-crit-${topic.id}`).value;
             
             if (!text) return alert("El acuerdo no puede estar vacío.");
             
-            agenda.agreements.push({
-                id: Date.now().toString(),
-                topicId: topic.id,
-                text,
-                responsible: resp,
-                date,
-                deadline: date,
-                criticality: crit,
-                completed: false
-            });
+            const editId = btn.getAttribute('data-edit-id');
+            if (editId) {
+                const existing = agenda.agreements.find(a => a.id === editId);
+                if (existing) {
+                    existing.text = text;
+                    existing.responsibleId = respId;
+                    existing.responsible = respId ? respName : '';
+                    existing.date = date;
+                    existing.deadline = date;
+                    existing.criticality = crit;
+                }
+            } else {
+                agenda.agreements.push({
+                    id: Date.now().toString(),
+                    topicId: topic.id,
+                    text,
+                    responsibleId: respId,
+                    responsible: respId ? respName : '',
+                    date,
+                    deadline: date,
+                    criticality: crit,
+                    completed: false
+                });
+            }
             saveState();
             renderAgreementsTopics();
-            // Reabrir el card modificado
+            // Reabrir el card modificado (como estaba abierto)
             setTimeout(() => {
                 const cards = document.querySelectorAll('.agreement-topic-card');
                 if (cards[index]) cards[index].classList.add('active');
             }, 50);
         });
         
+        // Botones de Eliminar
         card.querySelectorAll('.del-agr-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                agenda.agreements = agenda.agreements.filter(a => a.id !== btn.getAttribute('data-id'));
-                saveState();
-                renderAgreementsTopics();
-                // Reabrir el card modificado
-                setTimeout(() => {
-                    const cards = document.querySelectorAll('.agreement-topic-card');
-                    if (cards[index]) cards[index].classList.add('active');
-                }, 50);
+                if (confirm("¿Eliminar esta tarea?")) {
+                    agenda.agreements = agenda.agreements.filter(a => a.id !== btn.getAttribute('data-id'));
+                    saveState();
+                    renderAgreementsTopics();
+                    setTimeout(() => {
+                        const cards = document.querySelectorAll('.agreement-topic-card');
+                        if (cards[index]) cards[index].classList.add('active');
+                    }, 50);
+                }
             });
         });
-        
+
+        // Botones de Editar
+        card.querySelectorAll('.edit-agr-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const agrId = btn.getAttribute('data-id');
+                const agr = agenda.agreements.find(a => a.id === agrId);
+                if (agr) {
+                    document.querySelectorAll('.agreement-topic-card').forEach(c => c.classList.remove('active'));
+                    card.classList.add('active'); // Abrir acordeón
+
+                    document.getElementById(`agr-text-${topic.id}`).value = agr.text || '';
+                    if (agr.responsibleId) {
+                        document.getElementById(`agr-resp-${topic.id}`).value = agr.responsibleId;
+                    } else if (agr.responsible) {
+                        // Compatibilidad con texto libre antiguo:
+                        const optionMatch = Array.from(document.getElementById(`agr-resp-${topic.id}`).options).find(opt => opt.text.includes(agr.responsible));
+                        if(optionMatch) document.getElementById(`agr-resp-${topic.id}`).value = optionMatch.value;
+                    }
+                    
+                    document.getElementById(`agr-crit-${topic.id}`).value = agr.criticality || 'Media';
+                    document.getElementById(`agr-date-${topic.id}`).value = agr.date || '';
+                    
+                    const addBtn = card.querySelector('.add-agr-btn');
+                    addBtn.textContent = '💾 Guardar Cambios';
+                    addBtn.setAttribute('data-edit-id', agr.id);
+                }
+            });
+        });
+
         agreementsTopicsContainer.appendChild(card);
     });
 }
-
-async function generatePDF() {
-    const agenda = getCurrentAgenda();
-    if (!agenda) return;
-    
-    // Auto-guardar cualquier acuerdo que el usuario haya escrito pero olvidó clickear "+ Agregar a este tema"
-    let hasUnsavedAgreements = false;
-    agenda.topics.forEach(topic => {
-        const textInput = document.getElementById(`agr-text-${topic.id}`);
-        if (textInput && textInput.value.trim() !== '') {
-            const respInput = document.getElementById(`agr-resp-${topic.id}`);
-            const dateInput = document.getElementById(`agr-date-${topic.id}`);
-            const critInput = document.getElementById(`agr-crit-${topic.id}`);
-            
-            agenda.agreements.push({
-                id: Date.now().toString() + Math.random().toString(36).substring(7),
-                topicId: topic.id,
-                text: textInput.value.trim(),
-                responsible: respInput ? respInput.value.trim() : '',
-                date: dateInput ? dateInput.value : '',
-                deadline: dateInput ? dateInput.value : '',
-                criticality: critInput ? critInput.value : 'Media',
-                completed: false
-            });
-            hasUnsavedAgreements = true;
-        }
-    });
-    
-    if (hasUnsavedAgreements) {
-        saveState();
-    }
-    // Validar librería html2pdf
-    if (typeof html2pdf === 'undefined') {
-        alert("La herramienta de PDF está cargando. Por favor, intenta de nuevo en unos segundos o recarga la página.");
-        return;
-    }
-    
-
-    try {
-        // Llenar datos de la cabecera
-        document.getElementById('pdf-meeting-title').textContent = agenda.name || 'Reunión sin título';
-        document.getElementById('pdf-meeting-client').textContent = agenda.client ? `Cliente/Proyecto: ${agenda.client}` : '';
-        document.getElementById('pdf-meeting-date').textContent = agenda.date ? `Fecha: ${new Date(agenda.date + 'T12:00:00').toLocaleDateString()}` : '';
-        
-        // Llenar tiempos
-        const totalAllocated = agenda.topics.reduce((s, t) => s + t.allocatedSeconds, 0);
-        const totalElapsed = agenda.topics.reduce((s, t) => s + t.elapsedSeconds, 0);
-        document.getElementById('pdf-planned-time').textContent = formatTime(totalAllocated);
-        document.getElementById('pdf-actual-time').textContent = formatTime(totalElapsed);
-        
-        if (totalElapsed === 0) {
-            document.getElementById('pdf-actual-time-container').style.display = 'none';
-        } else {
-            document.getElementById('pdf-actual-time-container').style.display = 'block';
-        }
-        
-        // Llenar Temas y Acuerdos
-        const pdfTopicsList = document.getElementById('pdf-topics-list');
-        pdfTopicsList.innerHTML = '';
-        
-        agenda.topics.forEach((topic, index) => {
-            const topicDiv = document.createElement('div');
-            topicDiv.style.marginBottom = '25px';
-            
-            const elapsedMins = Math.round(topic.elapsedSeconds / 60);
-            const timeLabel = totalElapsed > 0 ? `<span style="font-size: 12px; font-weight: normal; color: #64748b; margin-left: 10px;">(Tiempo invertido: ${elapsedMins}m)</span>` : '';
-            
-            let topicSummaryHtml = '';
-            if (topic.summary && topic.summary.trim() !== '') {
-                topicSummaryHtml = `<p style="font-size: 13px; color: #334155; margin: 0 0 10px 20px; font-style: italic;"><strong>Resumen:</strong> ${topic.summary}</p>`;
-            }
-
-            topicDiv.innerHTML = `
-                <h3 style="font-size: 16px; color: #1e293b; margin: 0 0 10px 0; background: #f1f5f9; padding: 8px; border-left: 4px solid #2563eb;">
-                    ${index + 1}. ${topic.name} ${timeLabel}
-                </h3>
-                ${topicSummaryHtml}
-            `;
-            
-            const topicAgreements = (agenda.agreements || []).filter(a => a.topicId === topic.id);
-            if (topicAgreements.length > 0) {
-                const ul = document.createElement('ul');
-                ul.style.margin = '0 0 0 20px';
-                ul.style.padding = '0';
-                ul.style.color = '#334155';
-                
-                topicAgreements.forEach(agr => {
-                    const li = document.createElement('li');
-                    li.style.marginBottom = '8px';
-                    li.style.lineHeight = '1.4';
-                    
-                    const dateStr = agr.date ? new Date(agr.date + 'T12:00:00').toLocaleDateString() : 'N/A';
-                    li.innerHTML = `
-                        <strong>${agr.text}</strong>
-                        <div style="font-size: 12px; color: #64748b; margin-top: 2px;">
-                            Responsable: ${agr.responsible || 'No asignado'} | Límite: ${dateStr}
-                        </div>
-                    `;
-                    ul.appendChild(li);
-                });
-                topicDiv.appendChild(ul);
-            } else {
-                const p = document.createElement('p');
-                p.style.fontSize = '13px';
-                p.style.color = '#94a3b8';
-                p.style.margin = '0 0 0 20px';
-                p.style.fontStyle = 'italic';
-                p.textContent = 'Ningún acuerdo registrado para este tema.';
-                topicDiv.appendChild(p);
-            }
-            
-            pdfTopicsList.appendChild(topicDiv);
-        });
-
-        const generalSupportSection = document.getElementById('pdf-general-support-section');
-        if (agenda.meetingLink || agenda.meetingSummary) {
-            generalSupportSection.style.display = 'block';
-            
-            const linkEl = document.getElementById('pdf-meeting-link');
-            const linkContainer = document.getElementById('pdf-meeting-link-container');
-            if (agenda.meetingLink) {
-                linkContainer.style.display = 'block';
-                linkEl.href = agenda.meetingLink;
-                linkEl.textContent = agenda.meetingLink;
-            } else {
-                linkContainer.style.display = 'none';
-            }
-            
-            const summaryEl = document.getElementById('pdf-meeting-summary');
-            if (agenda.meetingSummary) {
-                summaryEl.style.display = 'block';
-                summaryEl.textContent = agenda.meetingSummary;
-            } else {
-                summaryEl.style.display = 'none';
-            }
-        } else {
-            generalSupportSection.style.display = 'none';
-        }
-
-        const element = document.getElementById('pdf-template-container');
-
-        // Mostrar pantalla de vista previa
-        currentPreviewType = 'acta';
-        pdfTemplateContainer.style.display = 'block';
-        prePdfTemplateContainer.style.display = 'none';
-        
-        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-        previewScreen.classList.add('active');
-        
-        finalizeAgreementsBtn.textContent = "Generar PDF de Acta";
-        finalizeAgreementsBtn.disabled = false;
-        
-    } catch (e) {
-        console.error("Error generando PDF:", e);
-        alert("Ocurrió un error al generar el PDF.");
-    } finally {
-        const isDone = agenda.status !== 'agendada';
-        finalizeAgreementsBtn.textContent = isDone ? "Generar y Descargar Acta PDF" : "Finalizar Acuerdos y Generar Acta PDF";
-        finalizeAgreementsBtn.disabled = false;
-    }
-}
-
-function exportPreviewToPDF() {
-    const agenda = getCurrentAgenda();
-    if (!agenda) return;
-
-    previewPdfBtn.textContent = "Generando...";
-    previewPdfBtn.disabled = true;
-
-    const elementId = currentPreviewType === 'convocatoria' ? 'pre-pdf-template-container' : 'pdf-template-container';
-    const element = document.getElementById(elementId);
-    const prefix = currentPreviewType === 'convocatoria' ? 'Convocatoria' : 'Acta';
-    
-    // Al usar el elemento directamente que está renderizado en pantalla sin max-width, html2canvas lo capta perfectamente
-    const opt = {
-        margin:       10,
-        filename:     `${prefix}_${agenda.name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.pdf`,
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
-
-    html2pdf().set(opt).from(element).save().then(() => {
-        previewPdfBtn.textContent = "📄 Descargar PDF";
-        previewPdfBtn.disabled = false;
-    }).catch(err => {
-        console.error("Error exportando PDF:", err);
-        alert("Ocurrió un error al exportar el PDF.");
-        previewPdfBtn.textContent = "📄 Descargar PDF";
-        previewPdfBtn.disabled = false;
-    });
-}
-
-function exportPreviewToWord() {
-    const agenda = getCurrentAgenda();
-    if (!agenda) return;
-
-    previewWordBtn.textContent = "Generando...";
-    previewWordBtn.disabled = true;
-
-    const elementId = currentPreviewType === 'convocatoria' ? 'pre-pdf-template-container' : 'pdf-template-container';
-    const element = document.getElementById(elementId);
-    const prefix = currentPreviewType === 'convocatoria' ? 'Convocatoria' : 'Acta';
-    const filename = `${prefix}_${agenda.name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.doc`;
-
-    const htmlContent = `
-        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-        <head>
-            <meta charset='utf-8'>
-            <title>${prefix} de Reunión</title>
-            <style>
-                body { font-family: Arial, sans-serif; }
-                h1, h2, h3 { color: #1e293b; }
-            </style>
-        </head>
-        <body>
-            ${element.innerHTML}
-        </body>
-        </html>
-    `;
-
-    const blob = new Blob(['\ufeff', htmlContent], {
-        type: 'application/msword'
-    });
-
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    previewWordBtn.textContent = "📝 Descargar Word";
-    previewWordBtn.disabled = false;
-}
-
-
-
-// -- LÓGICA DEL TEMPORIZADOR --
-function startMeeting(id) {
-    appState.currentAgendaId = id;
-    const agenda = getCurrentAgenda();
-    if (!agenda || agenda.topics.length === 0) {
-        alert("La agenda no tiene temas.");
-        return;
-    }
-    
-    agenda.currentTopicIndex = 0;
-    agenda.topics.forEach(t => {
-        t.elapsedSeconds = 0; // Reset
-        if (typeof t.originalAllocatedSeconds !== 'undefined') {
-            t.allocatedSeconds = t.originalAllocatedSeconds;
-            t.allocatedMinutes = Math.round(t.allocatedSeconds / 60);
-        } else {
-            t.originalAllocatedSeconds = t.allocatedSeconds;
-        }
-    });
-    
-    activeMeetingName.textContent = agenda.name || 'Reunión sin nombre';
-    
-    switchScreen(agendasListScreen, timerScreen);
-    resumeTimer();
-    updateTimerUI();
-}
-
-function updateTimerUI() {
-    const agenda = getCurrentAgenda();
-    if (!agenda) return;
-    
-    const currentTopic = agenda.topics[agenda.currentTopicIndex];
-    if (!currentTopic) return;
-    
-    // Asignación original si no existe (retrocompatibilidad)
-    if (typeof currentTopic.originalAllocatedSeconds === 'undefined') {
-        currentTopic.originalAllocatedSeconds = currentTopic.allocatedSeconds;
-    }
-    
-    currentTopicName.textContent = currentTopic.name;
-    
-    // Mostrar métricas de tiempo original vs modificado
-    const originalMins = Math.round(currentTopic.originalAllocatedSeconds / 60);
-    const currentMins = Math.round(currentTopic.allocatedSeconds / 60);
-    const diffMins = currentMins - originalMins;
-    
-    let badgeText = `Planificado: ${originalMins}m | Disponible: ${currentMins}m`;
-    if (diffMins > 0) {
-        badgeText += ` (+${diffMins}m sobrantes)`;
-    } else if (diffMins < 0) {
-        badgeText += ` (${diffMins}m de deuda)`;
-    }
-    topicDurationBadge.textContent = badgeText;
-    
-    const remainingSeconds = currentTopic.allocatedSeconds - currentTopic.elapsedSeconds;
-    
-    mainTimer.textContent = formatTime(remainingSeconds);
-    elapsedTimeEl.textContent = formatTime(currentTopic.elapsedSeconds);
-    
-    // Tiempo Total Restante
-    const totalAllocated = agenda.topics.reduce((sum, t) => sum + t.allocatedSeconds, 0);
-    const totalElapsed = agenda.topics.reduce((sum, t) => sum + t.elapsedSeconds, 0);
-    const totalRemaining = totalAllocated - totalElapsed;
-    const totalTimeLeftEl = document.getElementById('total-time-left');
-    if (totalTimeLeftEl) {
-        totalTimeLeftEl.textContent = `Total Restante: ${formatTime(totalRemaining)}`;
-    }
-    
-    if (agenda.currentTopicIndex + 1 < agenda.topics.length) {
-        nextTopicName.textContent = agenda.topics[agenda.currentTopicIndex + 1].name;
-        skipBtn.textContent = "Siguiente Tema";
-    } else {
-        nextTopicName.textContent = "Último tema";
-        skipBtn.textContent = "Finalizar";
-    }
-    
-    const progressPercent = totalAllocated > 0 ? (totalElapsed / totalAllocated) * 100 : 0;
-    overallProgress.style.width = `${Math.min(100, progressPercent)}%`;
-    
-    mainTimer.className = 'time-huge';
-    if (remainingSeconds <= 60 && remainingSeconds > 0) {
-        mainTimer.classList.add('warning');
-        if (remainingSeconds === 60) {
-            playBeepContinuous(3000); // Llamada a nueva función de alarma
-        }
-    } else if (remainingSeconds <= 0) {
-        mainTimer.classList.add('danger');
-    }
-}
-
-function togglePause() {
-    if (appState.isTimerRunning) {
-        pauseTimer();
-        pauseResumeBtn.textContent = 'Reanudar';
-        pauseResumeBtn.classList.remove('secondary');
-        pauseResumeBtn.classList.add('primary');
-    } else {
-        resumeTimer();
-        pauseResumeBtn.textContent = 'Pausar';
-        pauseResumeBtn.classList.remove('primary');
-        pauseResumeBtn.classList.add('secondary');
-    }
-}
-
-function pauseTimer() {
-    appState.isTimerRunning = false;
-    clearInterval(appState.timerInterval);
-    clearInterval(appState.cloudSyncInterval);
-    saveEphemeralState();
-    saveState();
-}
-
-function resumeTimer() {
-    appState.isTimerRunning = true;
-    appState.lastTickTime = Date.now();
-    
-    appState.timerInterval = setInterval(() => {
-        const agenda = getCurrentAgenda();
-        if (agenda && agenda.topics[agenda.currentTopicIndex]) {
-            const now = Date.now();
-            const diffSeconds = Math.floor((now - appState.lastTickTime) / 1000);
-            if (diffSeconds >= 1) {
-                agenda.topics[agenda.currentTopicIndex].elapsedSeconds += diffSeconds;
-                appState.lastTickTime += diffSeconds * 1000;
-                updateTimerUI();
-                saveEphemeralState();
-            }
-        }
-    }, 200);
-    
-    appState.cloudSyncInterval = setInterval(() => {
-        saveState();
-    }, 30000);
-}
-
-function skipToNextTopic() {
-    const agenda = getCurrentAgenda();
-    if (!agenda) return;
-    
-    const currentTopic = agenda.topics[agenda.currentTopicIndex];
-    const remainingSeconds = currentTopic.allocatedSeconds - currentTopic.elapsedSeconds;
-    
-    if (agenda.currentTopicIndex + 1 < agenda.topics.length) {
-        // Acarreamos el sobrante (o deuda) al siguiente tema de forma incondicional
-        agenda.topics[agenda.currentTopicIndex + 1].allocatedSeconds += remainingSeconds;
-        agenda.topics[agenda.currentTopicIndex + 1].allocatedMinutes = Math.round(agenda.topics[agenda.currentTopicIndex + 1].allocatedSeconds / 60);
-    }
-    
-    currentTopic.completed = true;
-    
-    if (agenda.currentTopicIndex + 1 < agenda.topics.length) {
-        agenda.currentTopicIndex++;
-        updateTimerUI();
-    } else {
-        finishMeeting();
-    }
-}
-
 function finishMeeting() {
     pauseTimer();
     const agenda = getCurrentAgenda();
@@ -2718,22 +2405,32 @@ function openInlineAgreementsModal() {
 
 function renderInlineAgreementsBody(agenda, topic) {
     const topicAgreements = agenda.agreements.filter(a => a.topicId === topic.id);
+    const canEdit = !agenda.owner_id || agenda.owner_id === appState.user?.id;
     
+    let attendeesOptions = '<option value="">-- Seleccionar Asistente --</option>';
+    if (agenda.attendees && agenda.attendees.length > 0) {
+        attendeesOptions += agenda.attendees.map(a => `<option value="${a.id}">${a.name || a.email || 'Sin nombre'}</option>`).join('');
+    } else {
+        attendeesOptions = '<option value="">(Agrega integrantes a la reunión)</option>';
+    }
+
     let html = `
         <div class="input-group" style="text-align: left; margin-bottom: 1rem;">
             <label>Resumen Específico del Tema</label>
             <textarea id="inline-topic-summary" rows="2" placeholder="Ej. Se concluyó que..." style="width: 100%; resize: vertical; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: white; border-radius: 8px; padding: 0.8rem; font-family: inherit; font-size: 0.95rem; box-sizing: border-box;">${topic.summary || ''}</textarea>
         </div>
         
-        <h4 style="margin: 1.5rem 0 0.5rem 0; font-size: 1rem; color: #fff;">Agregar Tarea / Acuerdo</h4>
+        <h4 style="margin: 1.5rem 0 0.5rem 0; font-size: 1rem; color: #fff;">Agregar / Editar Tarea</h4>
         <div class="input-group" style="text-align: left;">
             <label>Acuerdo / Tarea</label>
             <input type="text" id="inline-agr-text" placeholder="Ej. Enviar el reporte..." autocomplete="off">
         </div>
         <div class="input-row" style="text-align: left;">
             <div class="input-group">
-                <label>Responsable(s)</label>
-                <input type="text" id="inline-agr-resp" placeholder="Ej. María, Juan" autocomplete="off">
+                <label>Responsable</label>
+                <select id="inline-agr-resp" style="padding: 0.8rem; border-radius: 8px; background: rgba(15, 23, 42, 0.6); color: var(--text-primary); border: 1px solid var(--glass-border); width: 100%;">
+                    ${attendeesOptions}
+                </select>
             </div>
             <div class="input-group">
                 <label>Criticidad</label>
@@ -2769,7 +2466,10 @@ function renderInlineAgreementsBody(agenda, topic) {
                 <li style="margin-bottom: 0.8rem; padding-bottom: 0.8rem; border-bottom: 1px solid var(--glass-border);">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.4rem;">
                         <strong style="font-size: 0.95rem; color: var(--text-primary);">&#8226; ${agr.text}</strong>
-                        <button class="inline-del-agr-btn" data-id="${agr.id}" style="background: transparent; border: none; color: var(--danger-color); font-size: 1.2rem; cursor: pointer; padding: 0 0.5rem;">&times;</button>
+                        <div>
+                            ${canEdit ? `<button class="inline-edit-agr-btn" data-id="${agr.id}" style="background: transparent; border: none; color: #3b82f6; font-size: 1.2rem; cursor: pointer; padding: 0 0.5rem;" title="Editar">✏️</button>` : ''}
+                            ${canEdit ? `<button class="inline-del-agr-btn" data-id="${agr.id}" style="background: transparent; border: none; color: var(--danger-color); font-size: 1.2rem; cursor: pointer; padding: 0 0.5rem;" title="Eliminar">&times;</button>` : ''}
+                        </div>
                     </div>
                     <div style="font-size: 0.8rem; color: var(--text-secondary); display: flex; gap: 1rem; flex-wrap: wrap;">
                         <span>👤 ${agr.responsible || 'N/A'}</span>
@@ -2790,28 +2490,49 @@ function renderInlineAgreementsBody(agenda, topic) {
     if (summaryTextarea) {
         summaryTextarea.addEventListener('input', (e) => {
             topic.summary = e.target.value;
-            saveState();
+            saveEphemeralState(); // Guardado rápido
+        });
+        summaryTextarea.addEventListener('change', (e) => {
+            topic.summary = e.target.value;
+            saveState(); // Guardado a la nube
         });
     }
     
-    document.getElementById('inline-add-agr-btn').addEventListener('click', () => {
+    document.getElementById('inline-add-agr-btn').addEventListener('click', (e) => {
+        const btn = e.target;
         const text = document.getElementById('inline-agr-text').value.trim();
-        const resp = document.getElementById('inline-agr-resp').value.trim();
+        const respSelect = document.getElementById('inline-agr-resp');
+        const respId = respSelect.value;
+        const respName = respSelect.options[respSelect.selectedIndex]?.text || '';
         const date = document.getElementById('inline-agr-date').value;
         const crit = document.getElementById('inline-agr-crit').value;
         
         if (!text) return alert("El acuerdo no puede estar vacío.");
         
-        agenda.agreements.push({
-            id: Date.now().toString(),
-            topicId: topic.id,
-            text,
-            responsible: resp,
-            date,
-            deadline: date,
-            criticality: crit,
-            completed: false
-        });
+        const editId = btn.getAttribute('data-edit-id');
+        if (editId) {
+            const existing = agenda.agreements.find(a => a.id === editId);
+            if (existing) {
+                existing.text = text;
+                existing.responsibleId = respId;
+                existing.responsible = respId ? respName : '';
+                existing.date = date;
+                existing.deadline = date;
+                existing.criticality = crit;
+            }
+        } else {
+            agenda.agreements.push({
+                id: Date.now().toString(),
+                topicId: topic.id,
+                text,
+                responsibleId: respId,
+                responsible: respId ? respName : '',
+                date,
+                deadline: date,
+                criticality: crit,
+                completed: false
+            });
+        }
         saveState();
         renderInlineAgreementsBody(agenda, topic);
     });
@@ -2826,8 +2547,31 @@ function renderInlineAgreementsBody(agenda, topic) {
             }
         });
     });
-}
 
+    document.querySelectorAll('.inline-edit-agr-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const agrId = e.currentTarget.getAttribute('data-id');
+            const agr = agenda.agreements.find(a => a.id === agrId);
+            if (agr) {
+                document.getElementById('inline-agr-text').value = agr.text || '';
+                
+                if (agr.responsibleId) {
+                    document.getElementById('inline-agr-resp').value = agr.responsibleId;
+                } else if (agr.responsible) {
+                    const optionMatch = Array.from(document.getElementById('inline-agr-resp').options).find(opt => opt.text.includes(agr.responsible));
+                    if(optionMatch) document.getElementById('inline-agr-resp').value = optionMatch.value;
+                }
+                
+                document.getElementById('inline-agr-crit').value = agr.criticality || 'Media';
+                document.getElementById('inline-agr-date').value = agr.date || '';
+                
+                const addBtn = document.getElementById('inline-add-agr-btn');
+                addBtn.textContent = '💾 Guardar Cambios';
+                addBtn.setAttribute('data-edit-id', agr.id);
+            }
+        });
+    });
+}
 function closeInlineModal() {
     inlineAgreementsModal.style.display = 'none';
 }
