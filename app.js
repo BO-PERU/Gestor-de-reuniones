@@ -4,6 +4,8 @@ let appState = {
     currentAgendaId: null,
     isTimerRunning: false,
     timerInterval: null,
+    cloudSyncInterval: null,
+    lastTickTime: null,
     currentView: 'clients', // 'clients' | 'meetings'
     selectedClient: null
 };
@@ -232,6 +234,41 @@ async function migrateLegacyData() {
     }
 }
 
+function saveEphemeralState() {
+    if (!appState.user) return;
+    localStorage.setItem('fm_ephemeral_' + appState.user.id, JSON.stringify({
+        currentAgendaId: appState.currentAgendaId,
+        isTimerRunning: appState.isTimerRunning,
+        lastTickTime: appState.lastTickTime,
+        currentView: appState.currentView,
+        selectedClient: appState.selectedClient
+    }));
+    // También guardamos una copia de seguridad local de agendas para reanudar el reloj al instante sin esperar a Supabase
+    localStorage.setItem('fm_agendas_' + appState.user.id, JSON.stringify(appState.agendas));
+}
+
+function loadEphemeralState() {
+    if (!appState.user) return;
+    try {
+        const localAgendas = localStorage.getItem('fm_agendas_' + appState.user.id);
+        if (localAgendas) {
+            appState.agendas = JSON.parse(localAgendas);
+        }
+        
+        const eph = localStorage.getItem('fm_ephemeral_' + appState.user.id);
+        if (eph) {
+            const parsed = JSON.parse(eph);
+            appState.currentAgendaId = parsed.currentAgendaId;
+            appState.isTimerRunning = parsed.isTimerRunning;
+            appState.lastTickTime = parsed.lastTickTime;
+            appState.currentView = parsed.currentView || 'clients';
+            appState.selectedClient = parsed.selectedClient || null;
+        }
+    } catch(e) {
+        console.error("Error recuperando estado efímero:", e);
+    }
+}
+
 async function saveState() {
     if (!appState.user) return;
     try {
@@ -301,12 +338,32 @@ async function init() {
     supabaseClient.auth.onAuthStateChange(async (event, session) => {
         if (session) {
             appState.user = session.user;
+            loadEphemeralState(); // Recuperar sesión local primero
+            
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-            agendasListScreen.classList.add('active');
+            
+            if (appState.currentAgendaId && appState.isTimerRunning) {
+                timerScreen.classList.add('active');
+            } else {
+                agendasListScreen.classList.add('active');
+            }
             
             await migrateLegacyData();
-            await loadState();
-            renderAgendasList();
+            await loadState(); // Sobrescribe con nube, excepto la agenda activa
+            
+            if (appState.currentAgendaId && appState.isTimerRunning) {
+                const currentAgenda = getCurrentAgenda();
+                if (currentAgenda) {
+                    updateTimerUI();
+                    resumeTimer();
+                } else {
+                    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+                    agendasListScreen.classList.add('active');
+                    renderAgendasList();
+                }
+            } else {
+                renderAgendasList();
+            }
         } else {
             appState.user = null;
             appState.agendas = [];
@@ -2349,18 +2406,32 @@ function togglePause() {
 function pauseTimer() {
     appState.isTimerRunning = false;
     clearInterval(appState.timerInterval);
+    clearInterval(appState.cloudSyncInterval);
+    saveEphemeralState();
+    saveState();
 }
 
 function resumeTimer() {
     appState.isTimerRunning = true;
+    appState.lastTickTime = Date.now();
+    
     appState.timerInterval = setInterval(() => {
         const agenda = getCurrentAgenda();
         if (agenda && agenda.topics[agenda.currentTopicIndex]) {
-            agenda.topics[agenda.currentTopicIndex].elapsedSeconds++;
-            updateTimerUI();
-            saveState();
+            const now = Date.now();
+            const diffSeconds = Math.floor((now - appState.lastTickTime) / 1000);
+            if (diffSeconds >= 1) {
+                agenda.topics[agenda.currentTopicIndex].elapsedSeconds += diffSeconds;
+                appState.lastTickTime += diffSeconds * 1000;
+                updateTimerUI();
+                saveEphemeralState();
+            }
         }
-    }, 1000);
+    }, 200);
+    
+    appState.cloudSyncInterval = setInterval(() => {
+        saveState();
+    }, 30000);
 }
 
 function skipToNextTopic() {

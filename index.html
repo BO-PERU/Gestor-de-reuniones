@@ -14,8 +14,15 @@
 </head>
 <body>
     <div class="app-container">
+        <!-- Pantalla de Carga Inicial -->
+        <section id="loading-screen" class="screen active" style="justify-content: center; align-items: center; min-height: 80vh; display: flex; flex-direction: column;">
+            <div class="spinner" style="width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.1); border-top-color: var(--accent-color); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 1rem;"></div>
+            <p style="color: var(--text-secondary);">Cargando...</p>
+            <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+        </section>
+
         <!-- Pantalla de Login / Autenticación -->
-        <section id="auth-screen" class="screen active" style="justify-content: center; min-height: 80vh;">
+        <section id="auth-screen" class="screen" style="justify-content: center; min-height: 80vh;">
             <div style="text-align: center; margin-bottom: 2rem;">
                 <h1 style="font-size: 2rem; color: var(--accent-color); margin: 0 0 0.5rem 0;">Gestor Pro</h1>
                 <p style="color: var(--text-secondary); margin: 0;">Inicia sesión para gestionar tus reuniones</p>
@@ -456,6 +463,6 @@
     <!-- Librerías Externas -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=41"></script>
+    <script src="app.js?v=42"></script>
 </body>
 </html>
