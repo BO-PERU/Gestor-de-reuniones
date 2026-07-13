@@ -2593,3 +2593,54 @@ function closeInlineModal() {
 
 // Inicializar la app
 init();
+function togglePause() {
+    if (appState.isTimerRunning) {
+        pauseTimer();
+        pauseResumeBtn.textContent = 'Reanudar';
+        pauseResumeBtn.classList.remove('secondary');
+        pauseResumeBtn.classList.add('primary');
+    } else {
+        resumeTimer();
+        pauseResumeBtn.textContent = 'Pausar';
+        pauseResumeBtn.classList.remove('primary');
+        pauseResumeBtn.classList.add('secondary');
+    }
+}
+
+
+function skipToNextTopic() {
+    const agenda = getCurrentAgenda();
+    if (!agenda) return;
+    
+    const currentTopic = agenda.topics[agenda.currentTopicIndex];
+    const remainingSeconds = currentTopic.allocatedSeconds - currentTopic.elapsedSeconds;
+    
+    if (agenda.currentTopicIndex + 1 < agenda.topics.length) {
+        // Acarreamos el sobrante (o deuda) al siguiente tema de forma incondicional
+        agenda.topics[agenda.currentTopicIndex + 1].allocatedSeconds += remainingSeconds;
+        agenda.topics[agenda.currentTopicIndex + 1].allocatedMinutes = Math.round(agenda.topics[agenda.currentTopicIndex + 1].allocatedSeconds / 60);
+    }
+    
+    currentTopic.completed = true;
+    
+    if (agenda.currentTopicIndex + 1 < agenda.topics.length) {
+        agenda.currentTopicIndex++;
+        updateTimerUI();
+    } else {
+        finishMeeting();
+    }
+}
+
+
+function finishMeeting() {
+    pauseTimer();
+    const agenda = getCurrentAgenda();
+    if (agenda) {
+        agenda.status = 'realizada';
+        saveState();
+    }
+    renderSummary();
+    switchScreen(timerScreen, summaryScreen);
+}
+
+
