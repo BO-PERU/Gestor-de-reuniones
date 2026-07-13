@@ -334,43 +334,58 @@ async function loadState() {
 async function init() {
     setupEventListeners();
     
-    // Listener de Autenticación
+    try {
+        // Forzar lectura inicial para evitar que se quede "cargando" en móviles
+        const { data: { session }, error } = await supabaseClient.auth.getSession();
+        await handleSessionState(session);
+    } catch (e) {
+        console.error("Error al obtener sesión inicial:", e);
+        await handleSessionState(null);
+    }
+
+    // Listener de Autenticación para cambios de estado (login/logout)
     supabaseClient.auth.onAuthStateChange(async (event, session) => {
-        if (session) {
-            appState.user = session.user;
-            loadEphemeralState(); // Recuperar sesión local primero
-            
-            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-            
-            if (appState.currentAgendaId && appState.isTimerRunning) {
-                timerScreen.classList.add('active');
+        if (event !== 'INITIAL_SESSION') {
+            await handleSessionState(session);
+        }
+    });
+}
+
+async function handleSessionState(session) {
+    if (session) {
+        appState.user = session.user;
+        loadEphemeralState(); // Recuperar sesión local primero
+        
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        
+        if (appState.currentAgendaId && appState.isTimerRunning) {
+            timerScreen.classList.add('active');
+        } else {
+            agendasListScreen.classList.add('active');
+        }
+        
+        await migrateLegacyData();
+        await loadState(); // Sobrescribe con nube, excepto la agenda activa
+        
+        if (appState.currentAgendaId && appState.isTimerRunning) {
+            const currentAgenda = getCurrentAgenda();
+            if (currentAgenda) {
+                updateTimerUI();
+                resumeTimer();
             } else {
+                document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
                 agendasListScreen.classList.add('active');
-            }
-            
-            await migrateLegacyData();
-            await loadState(); // Sobrescribe con nube, excepto la agenda activa
-            
-            if (appState.currentAgendaId && appState.isTimerRunning) {
-                const currentAgenda = getCurrentAgenda();
-                if (currentAgenda) {
-                    updateTimerUI();
-                    resumeTimer();
-                } else {
-                    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-                    agendasListScreen.classList.add('active');
-                    renderAgendasList();
-                }
-            } else {
                 renderAgendasList();
             }
         } else {
-            appState.user = null;
-            appState.agendas = [];
-            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-            if(authScreen) authScreen.classList.add('active');
+            renderAgendasList();
         }
-    });
+    } else {
+        appState.user = null;
+        appState.agendas = [];
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        if(authScreen) authScreen.classList.add('active');
+    }
 }
 
 function setupEventListeners() {
