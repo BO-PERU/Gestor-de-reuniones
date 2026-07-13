@@ -2197,7 +2197,7 @@ function formatTime(totalSeconds) {
     return `${isNegative ? '-' : ''}${m}:${s}`;
 }
 
-document.addEventListener('DOMContentLoaded', init);
+if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); } else { init(); }
 
 // -- ANALÍTICAS --
 function renderGlobalAnalytics() {
