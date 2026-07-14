@@ -276,16 +276,25 @@ async function saveState() {
         
         // Determinar qué usuario es dueño para no sobrescribir permisos si somos guest
         // Por ahora, asumimos que si la editamos, se hace un upsert
-        const upsertData = appState.agendas.map(agenda => ({
-            id: agenda.id,
-            owner_id: agenda.owner_id || appState.user.id, // Mantenemos el owner original si existe
-            name: agenda.name || 'Sin título',
-            client: agenda.client || '',
-            guest_email: agenda.guest_email || null,
-            date: agenda.date || null,
-            total_time_minutes: agenda.totalTimeMinutes || 0,
-            data: agenda
-        }));
+        const upsertData = appState.agendas.map(agenda => {
+            let emails = [];
+            if (agenda.attendees) {
+                emails = agenda.attendees
+                    .map(a => (a.email || '').trim().toLowerCase())
+                    .filter(e => e !== '');
+            }
+            return {
+                id: agenda.id,
+                owner_id: agenda.owner_id || appState.user.id, // Mantenemos el owner original si existe
+                name: agenda.name || 'Sin título',
+                client: agenda.client || '',
+                guest_email: agenda.guest_email || null,
+                shared_with_emails: emails,
+                date: agenda.date || null,
+                total_time_minutes: agenda.totalTimeMinutes || 0,
+                data: agenda
+            };
+        });
 
         const { error } = await supabaseClient
             .from('agendas')
@@ -1148,7 +1157,8 @@ function renderClientMeetings(clientName) {
         
         li.querySelector('.edit-agenda-btn').addEventListener('click', (e) => {
             e.stopPropagation();
-            if (isDone) {
+            const isGuest = agenda.owner_id && appState.user && agenda.owner_id !== appState.user.id;
+            if (isDone || isGuest) {
                 appState.currentAgendaId = agenda.id;
                 openAgreementsScreen();
             } else {
@@ -1243,8 +1253,16 @@ function renderClientTasks() {
     
     // Extraer todas las tareas de las reuniones del cliente
     clientAgendas.forEach(agenda => {
+        const isGuest = agenda.owner_id && appState.user && agenda.owner_id !== appState.user.id;
+        const myEmail = appState.user ? appState.user.email : '';
+        
         if (agenda.agreements && agenda.agreements.length > 0) {
             agenda.agreements.forEach(agr => {
+                if (isGuest) {
+                    const isResp = agr.responsible && (agr.responsible.toLowerCase() === myEmail || agenda.attendees?.find(att => att.email === myEmail)?.name === agr.responsible);
+                    if (!isResp) return;
+                }
+
                 // Buscamos a qué tema pertenece
                 const topic = agenda.topics ? agenda.topics.find(t => t.id === agr.topicId) : null;
                 allTasks.push({
@@ -1459,7 +1477,8 @@ function renderFilteredList(filterType) {
         
         li.querySelector('.edit-agenda-btn').addEventListener('click', (e) => {
             e.stopPropagation();
-            if (isDone) {
+            const isGuest = agenda.owner_id && appState.user && agenda.owner_id !== appState.user.id;
+            if (isDone || isGuest) {
                 appState.currentAgendaId = agenda.id;
                 openAgreementsScreen();
             } else {
@@ -1932,8 +1951,20 @@ function renderAgreementsTopics() {
     }
     if (!agenda.agreements) agenda.agreements = [];
 
+    const isGuest = agenda.owner_id && appState.user && agenda.owner_id !== appState.user.id;
+    const myEmail = appState.user ? appState.user.email : '';
+
     agenda.topics.forEach((topic, index) => {
-        const topicAgreements = agenda.agreements.filter(a => a.topicId === topic.id);
+        let topicAgreements = agenda.agreements.filter(a => a.topicId === topic.id);
+        
+        if (isGuest) {
+            topicAgreements = topicAgreements.filter(a => {
+                const isResp = a.responsible && (a.responsible.toLowerCase() === myEmail || agenda.attendees?.find(att => att.email === myEmail)?.name === a.responsible);
+                return isResp;
+            });
+            // Si el invitado no tiene acuerdos en este tema, no renderizar el tema
+            if (topicAgreements.length === 0) return;
+        }
         
         const card = document.createElement('div');
         card.className = 'agreement-topic-card';
@@ -2144,7 +2175,20 @@ async function generatePDF() {
         const pdfTopicsList = document.getElementById('pdf-topics-list');
         pdfTopicsList.innerHTML = '';
         
+        const isGuest = agenda.owner_id && appState.user && agenda.owner_id !== appState.user.id;
+        const myEmail = appState.user ? appState.user.email : '';
+
         agenda.topics.forEach((topic, index) => {
+            let topicAgreements = (agenda.agreements || []).filter(a => a.topicId === topic.id);
+            
+            if (isGuest) {
+                topicAgreements = topicAgreements.filter(a => {
+                    const isResp = a.responsible && (a.responsible.toLowerCase() === myEmail || agenda.attendees?.find(att => att.email === myEmail)?.name === a.responsible);
+                    return isResp;
+                });
+                if (topicAgreements.length === 0) return; // Hide topics with no participation for guests
+            }
+
             const topicDiv = document.createElement('div');
             topicDiv.style.marginBottom = '25px';
             
@@ -2163,7 +2207,6 @@ async function generatePDF() {
                 ${topicSummaryHtml}
             `;
             
-            const topicAgreements = (agenda.agreements || []).filter(a => a.topicId === topic.id);
             if (topicAgreements.length > 0) {
                 const ul = document.createElement('ul');
                 ul.style.margin = '0 0 0 20px';
