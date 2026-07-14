@@ -507,14 +507,30 @@ function setupEventListeners() {
     });
     
     if (document.getElementById('delete-agenda-btn-main')) {
-        document.getElementById('delete-agenda-btn-main').addEventListener('click', () => {
+        document.getElementById('delete-agenda-btn-main').addEventListener('click', async () => {
             if(confirm('¿Estás seguro de que deseas eliminar esta reunión por completo? Esta acción no se puede deshacer.')) {
                 const agenda = getCurrentAgenda();
                 if (agenda) {
-                    appState.agendas = appState.agendas.filter(a => a.id !== agenda.id);
-                    saveState();
-                    switchScreen(setupScreen, agendasListScreen);
-                    renderAgendasList();
+                    syncStatus.textContent = "🟡 Guardando...";
+                    const { error } = await supabaseClient.from('agendas').delete().eq('id', agenda.id);
+                    if (error) {
+                        console.error(error);
+                        syncStatus.textContent = "🔴 Error de Sync";
+                        alert("Error al eliminar: " + error.message);
+                    } else {
+                        appState.agendas = appState.agendas.filter(a => a.id !== agenda.id);
+                        if (appState.agendas.length > 0) {
+                            saveState();
+                        } else {
+                            syncStatus.textContent = "🟢 Sincronizado";
+                        }
+                        switchScreen(setupScreen, agendasListScreen);
+                        if (typeof renderAgendasList === 'function') {
+                            renderAgendasList();
+                        } else if (typeof renderClientMeetings === 'function') {
+                            renderClientMeetings(appState.selectedClient);
+                        }
+                    }
                 }
             }
         });
