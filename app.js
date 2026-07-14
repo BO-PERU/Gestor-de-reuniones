@@ -285,7 +285,7 @@ async function saveState() {
         // Por ahora, asumimos que si la editamos, se hace un upsert
         const upsertData = appState.agendas.map(agenda => {
             let emails = [];
-            if (agenda.attendees) {
+            if (agenda.attendees && Array.isArray(agenda.attendees)) {
                 emails = agenda.attendees
                     .map(a => (a.email || '').trim().toLowerCase())
                     .filter(e => e !== '');
