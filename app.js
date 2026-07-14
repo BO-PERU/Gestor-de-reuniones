@@ -1,3 +1,4 @@
+let openAgreementsScreen;
 let appState = {
     user: null, // Usuario autenticado
     agendas: [], // Array de objetos agenda
@@ -615,7 +616,7 @@ function setupEventListeners() {
     });
 
     // Pantalla de Acuerdos
-    const openAgreementsScreen = () => {
+    window.openAgreementsScreen = () => {
         const agenda = getCurrentAgenda();
         if (agenda) {
             // Cargar datos extra si existen
