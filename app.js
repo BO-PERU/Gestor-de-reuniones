@@ -1267,7 +1267,7 @@ function renderClientTasks() {
         if (agenda.agreements && agenda.agreements.length > 0) {
             agenda.agreements.forEach(agr => {
                 if (isGuest) {
-                    const isResp = agr.responsible && (agr.responsible.toLowerCase() === myEmail || agenda.attendees?.find(att => att.email === myEmail)?.name === agr.responsible);
+                    const isResp = (agr.responsibleEmail && agr.responsibleEmail.toLowerCase() === myEmail) || (agr.responsible && (agr.responsible.toLowerCase() === myEmail || agenda.attendees?.find(att => att.email === myEmail)?.name === agr.responsible));
                     if (!isResp) return;
                 }
 
@@ -1988,7 +1988,7 @@ function renderAgreementsTopics() {
         
         if (isGuest) {
             topicAgreements = topicAgreements.filter(a => {
-                const isResp = a.responsible && (a.responsible.toLowerCase() === myEmail || agenda.attendees?.find(att => att.email === myEmail)?.name === a.responsible);
+                const isResp = (a.responsibleEmail && a.responsibleEmail.toLowerCase() === myEmail) || (a.responsible && (a.responsible.toLowerCase() === myEmail || agenda.attendees?.find(att => att.email === myEmail)?.name === a.responsible));
                 return isResp;
             });
             // Si el invitado no tiene acuerdos en este tema, no renderizar el tema
@@ -2212,7 +2212,7 @@ async function generatePDF() {
             
             if (isGuest) {
                 topicAgreements = topicAgreements.filter(a => {
-                    const isResp = a.responsible && (a.responsible.toLowerCase() === myEmail || agenda.attendees?.find(att => att.email === myEmail)?.name === a.responsible);
+                    const isResp = (a.responsibleEmail && a.responsibleEmail.toLowerCase() === myEmail) || (a.responsible && (a.responsible.toLowerCase() === myEmail || agenda.attendees?.find(att => att.email === myEmail)?.name === a.responsible));
                     return isResp;
                 });
                 if (topicAgreements.length === 0) return; // Hide topics with no participation for guests
@@ -2833,10 +2833,13 @@ function renderInlineAgreementsBody(agenda, topic) {
     
     let attendeesOptions = '<option value="">-- Seleccionar Asistente --</option>';
     if (agenda.attendees && agenda.attendees.length > 0) {
-        attendeesOptions += agenda.attendees.map(a => `<option value="${a.id}">${a.name || a.email || 'Sin nombre'}</option>`).join('');
-    } else {
-        attendeesOptions = '<option value="">(Agrega integrantes a la reunión)</option>';
+        attendeesOptions += agenda.attendees.map(a => {
+            const emailAttr = a.email ? `data-email="${a.email}"` : '';
+            const nameAttr = a.name ? `data-name="${a.name}"` : '';
+            return `<option value="${a.email || a.name || a.id}" ${emailAttr} ${nameAttr}>${a.name || a.email || 'Sin nombre'} ${a.email ? `(${a.email})` : ''}</option>`;
+        }).join('');
     }
+    attendeesOptions += '<option value="external">➕ Otro (Ingresar correo)...</option>';
 
     let html = `
         <div class="input-group" style="text-align: left; margin-bottom: 1rem;">
@@ -2852,9 +2855,10 @@ function renderInlineAgreementsBody(agenda, topic) {
         <div class="input-row" style="text-align: left;">
             <div class="input-group">
                 <label>Responsable</label>
-                <select id="inline-agr-resp" style="padding: 0.8rem; border-radius: 8px; background: rgba(15, 23, 42, 0.6); color: var(--text-primary); border: 1px solid var(--glass-border); width: 100%;">
+                <select id="inline-agr-resp" style="padding: 0.8rem; border-radius: 8px; background: rgba(15, 23, 42, 0.6); color: var(--text-primary); border: 1px solid var(--glass-border); width: 100%; margin-bottom: 0.5rem;">
                     ${attendeesOptions}
                 </select>
+                <input type="email" id="inline-agr-ext-email" placeholder="correo@empresa.com" style="display: none; width: 100%; padding: 0.8rem; border-radius: 8px; background: rgba(15, 23, 42, 0.6); color: var(--text-primary); border: 1px solid var(--glass-border);">
             </div>
             <div class="input-group">
                 <label>Criticidad</label>
@@ -2922,6 +2926,17 @@ function renderInlineAgreementsBody(agenda, topic) {
         });
     }
     
+    const respSelectEl = document.getElementById('inline-agr-resp');
+    const extEmailEl = document.getElementById('inline-agr-ext-email');
+    respSelectEl.addEventListener('change', (e) => {
+        if (e.target.value === 'external') {
+            extEmailEl.style.display = 'block';
+            extEmailEl.focus();
+        } else {
+            extEmailEl.style.display = 'none';
+        }
+    });
+
     document.getElementById('inline-add-agr-btn').addEventListener('click', (e) => {
         const btn = e.target;
         const text = document.getElementById('inline-agr-text').value.trim();
