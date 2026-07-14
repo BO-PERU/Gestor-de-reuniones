@@ -634,7 +634,7 @@ function setupEventListeners() {
     });
 
     // Pantalla de Acuerdos
-    window.openAgreementsScreen = () => {
+    openAgreementsScreen = () => {
         const agenda = getCurrentAgenda();
         if (agenda) {
             // Cargar datos extra si existen
