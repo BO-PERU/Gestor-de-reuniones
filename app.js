@@ -464,14 +464,14 @@ function setupEventListeners() {
         document.getElementById('guest-email').addEventListener('input', updateCurrentAgenda);
     }
     meetingDateInput.addEventListener('input', updateCurrentAgenda);
-    meetingTimeInput.addEventListener('input', () => {
+    const triggerTimeCalc = () => {
         calculateTotalTime();
         updateCurrentAgenda();
-    });
-    meetingEndTimeInput.addEventListener('input', () => {
-        calculateTotalTime();
-        updateCurrentAgenda();
-    });
+    };
+    meetingTimeInput.addEventListener('input', triggerTimeCalc);
+    meetingTimeInput.addEventListener('change', triggerTimeCalc);
+    meetingEndTimeInput.addEventListener('input', triggerTimeCalc);
+    meetingEndTimeInput.addEventListener('change', triggerTimeCalc);
     meetingLocationInput.addEventListener('input', updateCurrentAgenda);
     totalTimeInput.addEventListener('change', updateCurrentAgenda);
     totalTimeInput.addEventListener('input', () => {
@@ -1649,6 +1649,11 @@ function openAgenda(id) {
     renderAttendees();
     totalTimeInput.value = agenda.totalTimeMinutes || 0;
     
+    // Forzar recálculo por si quedó en 0 por algún error anterior
+    if (agenda.time && agenda.endTime) {
+        calculateTotalTime();
+    }
+    
     // Si la agenda ya no está agendada (está realizada), ponemos la pantalla Setup en read-only
     const isDone = agenda.status !== 'agendada';
     setReadOnlyMode(setupScreen, isDone);
@@ -1704,16 +1709,24 @@ function updateCurrentAgenda() {
 }
 
 function calculateTotalTime() {
-    const startTime = meetingTimeInput.value;
-    const endTime = meetingEndTimeInput.value;
+    let startTime = meetingTimeInput.value;
+    let endTime = meetingEndTimeInput.value;
+    
+    // Limpieza por si hay formatos extraños en navegadores
+    startTime = startTime.replace(/[^0-9:]/g, '');
+    endTime = endTime.replace(/[^0-9:]/g, '');
+    
     if (startTime && endTime) {
         const [sh, sm] = startTime.split(':').map(Number);
         const [eh, em] = endTime.split(':').map(Number);
-        let startMins = sh * 60 + sm;
-        let endMins = eh * 60 + em;
-        if (endMins < startMins) endMins += 24 * 60; // Pasa al día siguiente
-        const diff = endMins - startMins;
-        totalTimeInput.value = diff;
+        
+        if (!isNaN(sh) && !isNaN(sm) && !isNaN(eh) && !isNaN(em)) {
+            let startMins = sh * 60 + sm;
+            let endMins = eh * 60 + em;
+            if (endMins < startMins) endMins += 24 * 60; // Pasa al día siguiente
+            const diff = endMins - startMins;
+            totalTimeInput.value = diff;
+        }
     }
 }
 
