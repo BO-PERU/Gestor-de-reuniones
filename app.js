@@ -705,9 +705,13 @@ function setupEventListeners() {
             });
             
             if (consolidated) {
-                // Agregar al contenido existente o reemplazar si está vacío
+                // Reemplazar si el texto consolidado ya existe para evitar duplicados
                 const currentVal = meetingSummaryInput.value.trim();
-                meetingSummaryInput.value = currentVal ? currentVal + "\n\n" + consolidated.trim() : consolidated.trim();
+                if (currentVal && !currentVal.includes(consolidated.trim())) {
+                    meetingSummaryInput.value = currentVal + "\n\n" + consolidated.trim();
+                } else {
+                    meetingSummaryInput.value = consolidated.trim();
+                }
                 agenda.meetingSummary = meetingSummaryInput.value;
                 saveState();
             } else {
