@@ -1178,14 +1178,33 @@ function renderClientMeetings(clientName) {
             }
         });
         
-        li.querySelector('.delete-agenda-btn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            if(confirm('¿Eliminar esta agenda?')) {
-                appState.agendas = appState.agendas.filter(a => a.id !== agenda.id);
-                saveState();
-                renderAgendasList();
-            }
-        });
+        const deleteBtn = li.querySelector('.delete-agenda-btn');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                if(confirm('¿Eliminar esta agenda de forma permanente?')) {
+                    syncStatus.textContent = "🟡 Guardando...";
+                    const { error } = await supabaseClient.from('agendas').delete().eq('id', agenda.id);
+                    if (error) {
+                        console.error(error);
+                        syncStatus.textContent = "🔴 Error de Sync";
+                        alert("Error al eliminar: " + error.message);
+                    } else {
+                        appState.agendas = appState.agendas.filter(a => a.id !== agenda.id);
+                        if (appState.agendas.length > 0) {
+                            saveState();
+                        } else {
+                            syncStatus.textContent = "🟢 Sincronizado";
+                        }
+                        if (typeof renderAgendasList === 'function' && appState.currentView === 'agendas') {
+                            renderAgendasList();
+                        } else if (typeof renderClientMeetings === 'function') {
+                            renderClientMeetings(appState.selectedClient);
+                        }
+                    }
+                }
+            });
+        }
         
         agendasList.appendChild(li);
     });
