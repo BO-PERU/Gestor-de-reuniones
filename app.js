@@ -159,6 +159,12 @@ function playBeep() {
     oscillator.stop(audioCtx.currentTime + 0.5);
 }
 
+function playThreeBeeps() {
+    playBeepContinuous(200);
+    setTimeout(() => playBeepContinuous(200), 400);
+    setTimeout(() => playBeepContinuous(200), 800);
+}
+
 function playBeepContinuous(durationMs = 3000) {
     if (!audioCtx) {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -2502,7 +2508,17 @@ function resumeTimer() {
             const now = Date.now();
             const diffSeconds = Math.floor((now - appState.lastTickTime) / 1000);
             if (diffSeconds >= 1) {
-                agenda.topics[agenda.currentTopicIndex].elapsedSeconds += diffSeconds;
+                const currentTopic = agenda.topics[agenda.currentTopicIndex];
+                const prevRemaining = currentTopic.allocatedSeconds - currentTopic.elapsedSeconds;
+                
+                currentTopic.elapsedSeconds += diffSeconds;
+                
+                const newRemaining = currentTopic.allocatedSeconds - currentTopic.elapsedSeconds;
+                
+                if (prevRemaining > 60 && newRemaining <= 60) {
+                    playThreeBeeps();
+                }
+                
                 appState.lastTickTime += diffSeconds * 1000;
                 updateTimerUI();
                 saveEphemeralState();
@@ -2524,6 +2540,10 @@ function skipToNextTopic() {
     
     if (agenda.currentTopicIndex + 1 < agenda.topics.length) {
         // Acarreamos el sobrante (o deuda) al siguiente tema de forma incondicional
+        // Restamos del actual para que no se sume dos veces al total
+        currentTopic.allocatedSeconds -= remainingSeconds;
+        currentTopic.allocatedMinutes = Math.round(currentTopic.allocatedSeconds / 60);
+        
         agenda.topics[agenda.currentTopicIndex + 1].allocatedSeconds += remainingSeconds;
         agenda.topics[agenda.currentTopicIndex + 1].allocatedMinutes = Math.round(agenda.topics[agenda.currentTopicIndex + 1].allocatedSeconds / 60);
     }
