@@ -476,8 +476,10 @@ function setupEventListeners() {
     };
     meetingTimeInput.addEventListener('input', triggerTimeCalc);
     meetingTimeInput.addEventListener('change', triggerTimeCalc);
+    meetingTimeInput.addEventListener('blur', triggerTimeCalc);
     meetingEndTimeInput.addEventListener('input', triggerTimeCalc);
     meetingEndTimeInput.addEventListener('change', triggerTimeCalc);
+    meetingEndTimeInput.addEventListener('blur', triggerTimeCalc);
     meetingLocationInput.addEventListener('input', updateCurrentAgenda);
     totalTimeInput.addEventListener('change', updateCurrentAgenda);
     totalTimeInput.addEventListener('input', () => {
@@ -1718,21 +1720,29 @@ function calculateTotalTime() {
     let startTime = meetingTimeInput.value;
     let endTime = meetingEndTimeInput.value;
     
-    // Limpieza por si hay formatos extraños en navegadores
-    startTime = startTime.replace(/[^0-9:]/g, '');
-    endTime = endTime.replace(/[^0-9:]/g, '');
+    if (!startTime || !endTime) return;
     
-    if (startTime && endTime) {
-        const [sh, sm] = startTime.split(':').map(Number);
-        const [eh, em] = endTime.split(':').map(Number);
+    const parseTime = (tStr) => {
+        // Soporta formatos como "22:00", "10:00 PM", "10:00 p.m."
+        const match = tStr.trim().match(/^(\d{1,2}):(\d{2})\s*(a\.?m\.?|p\.?m\.?)?/i);
+        if (!match) return null;
+        let h = parseInt(match[1]);
+        let m = parseInt(match[2]);
+        const ampm = match[3] ? match[3].toLowerCase().replace(/\./g, '') : null;
         
-        if (!isNaN(sh) && !isNaN(sm) && !isNaN(eh) && !isNaN(em)) {
-            let startMins = sh * 60 + sm;
-            let endMins = eh * 60 + em;
-            if (endMins < startMins) endMins += 24 * 60; // Pasa al día siguiente
-            const diff = endMins - startMins;
-            totalTimeInput.value = diff;
-        }
+        if (ampm === 'pm' && h < 12) h += 12;
+        if (ampm === 'am' && h === 12) h = 0;
+        
+        return h * 60 + m;
+    };
+
+    let startMins = parseTime(startTime);
+    let endMins = parseTime(endTime);
+
+    if (startMins !== null && endMins !== null) {
+        if (endMins < startMins) endMins += 24 * 60;
+        const diff = endMins - startMins;
+        totalTimeInput.value = diff;
     }
 }
 
