@@ -311,7 +311,8 @@ async function saveState() {
         syncStatus.textContent = "🟢 Sincronizado";
     } catch (e) {
         console.error("Error guardando:", e);
-        syncStatus.textContent = "🔴 Error de Sync";
+        syncStatus.textContent = "🔴 Error: " + (e.message || e.toString()).substring(0, 50);
+        syncStatus.title = (e.message || e.toString()); // Mostrar todo en tooltip
     }
 }
 
@@ -515,8 +516,9 @@ function setupEventListeners() {
                     const { error } = await supabaseClient.from('agendas').delete().eq('id', agenda.id);
                     if (error) {
                         console.error(error);
-                        syncStatus.textContent = "🔴 Error de Sync";
-                        alert("Error al eliminar: " + error.message);
+                        syncStatus.textContent = "🔴 Error: " + error.message.substring(0, 50);
+                        syncStatus.title = error.message;
+                        alert("Error al eliminar en Supabase: " + error.message);
                     } else {
                         appState.agendas = appState.agendas.filter(a => a.id !== agenda.id);
                         if (appState.agendas.length > 0) {
@@ -1204,8 +1206,9 @@ function renderClientMeetings(clientName) {
                     const { error } = await supabaseClient.from('agendas').delete().eq('id', agenda.id);
                     if (error) {
                         console.error(error);
-                        syncStatus.textContent = "🔴 Error de Sync";
-                        alert("Error al eliminar: " + error.message);
+                        syncStatus.textContent = "🔴 Error: " + error.message.substring(0, 50);
+                        syncStatus.title = error.message;
+                        alert("Error al eliminar en Supabase: " + error.message);
                     } else {
                         appState.agendas = appState.agendas.filter(a => a.id !== agenda.id);
                         if (appState.agendas.length > 0) {
