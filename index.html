@@ -367,6 +367,9 @@
                     <button id="top-generate-pdf-btn" class="btn primary small" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">📄 PDF</button>
                 </div>
                 <p>Haga clic en el tema vinculado al acuerdo para registrar los detalles.</p>
+                <div class="input-group" style="margin-top: 1rem; margin-bottom: 0;">
+                    <input type="text" id="agreements-meeting-name" placeholder="Nombre de la Reunión" autocomplete="off" style="font-size: 1.1rem; font-weight: 500;">
+                </div>
             </header>
             
             <div id="agreements-topics-container" class="agreements-topics-container">
@@ -441,10 +444,9 @@
                         <img src="logo.png" alt="Logo" style="max-height: 80px; max-width: 150px; border-radius: 8px; object-fit: contain;">
                     </div>
                     
-                    <h2 style="font-size: 18px; color: #2563eb; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">1. RESUMEN DE TIEMPOS</h2>
+                    <h2 style="font-size: 18px; color: #2563eb; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">1. ASISTENTES</h2>
                     <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 30px; border-left: 4px solid #e2e8f0;">
-                        <p style="margin: 0; color: #334155;"><strong>Tiempo Planificado Total:</strong> <span id="pdf-planned-time"></span></p>
-                        <p id="pdf-actual-time-container" style="margin: 5px 0 0 0; color: #334155;"><strong>Tiempo Real Invertido:</strong> <span id="pdf-actual-time"></span></p>
+                        <p id="pdf-meeting-attendees" style="margin: 0; color: #334155; font-size: 14px;"></p>
                     </div>
                     
                     <h2 style="font-size: 18px; color: #2563eb; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">2. AGENDA TRATADA Y ACUERDOS</h2>

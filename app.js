@@ -640,6 +640,15 @@ function setupEventListeners() {
             // Cargar datos extra si existen
             meetingLinkInput.value = agenda.meetingLink || '';
             meetingSummaryInput.value = agenda.meetingSummary || '';
+            const agNameInput = document.getElementById('agreements-meeting-name');
+            if (agNameInput) {
+                agNameInput.value = agenda.name || '';
+                // remover listeners previos clonando el nodo si es necesario, o solo asignar oninput
+                agNameInput.oninput = (e) => {
+                    agenda.name = e.target.value;
+                    saveState();
+                };
+            }
 
             // NUNCA bloquear la pantalla de acuerdos para permitir registro Ex-Post
             setReadOnlyMode(agreementsScreen, false);
@@ -2231,17 +2240,14 @@ async function generatePDF() {
         document.getElementById('pdf-meeting-client').textContent = agenda.client ? `Cliente/Proyecto: ${agenda.client}` : '';
         document.getElementById('pdf-meeting-date').textContent = agenda.date ? `Fecha: ${new Date(agenda.date + 'T12:00:00').toLocaleDateString()}` : '';
         
-        // Llenar tiempos
-        const totalAllocated = agenda.topics.reduce((s, t) => s + t.allocatedSeconds, 0);
-        const totalElapsed = agenda.topics.reduce((s, t) => s + t.elapsedSeconds, 0);
-        document.getElementById('pdf-planned-time').textContent = formatTime(totalAllocated);
-        document.getElementById('pdf-actual-time').textContent = formatTime(totalElapsed);
-        
-        if (totalElapsed === 0) {
-            document.getElementById('pdf-actual-time-container').style.display = 'none';
-        } else {
-            document.getElementById('pdf-actual-time-container').style.display = 'block';
+        // Llenar Asistentes
+        let attendeesText = '';
+        if (Array.isArray(agenda.attendees) && agenda.attendees.length > 0) {
+            attendeesText = agenda.attendees.filter(a => a.name.trim() !== '').map(a => a.name).join(', ');
+        } else if (typeof agenda.attendees === 'string' && agenda.attendees.trim() !== '') {
+            attendeesText = agenda.attendees;
         }
+        document.getElementById('pdf-meeting-attendees').textContent = attendeesText ? `Asistentes: ${attendeesText}` : 'Asistentes: No especificados';
         
         // Llenar Temas y Acuerdos
         const pdfTopicsList = document.getElementById('pdf-topics-list');
